@@ -4,7 +4,7 @@ ROMCLS		EQU 0D6BH	    ;ROM CLS Routine
 ROMBDR		EQU 229BH	    ;ROM BORDER Routine
 VISIBLE		EQU 2		    ;OLD FORMAT SPRITES FLAGS - 1=visible, 0=X_MSB
 FLAGS		EQU 0		    ;NEW FORMAT SPRITES FLAGS - 0-7=palette_offset, 3=x_mirror, 2=y_mirror, 1=rotate, 0=X_MSB
-DATABLKSZ	EQU 6
+DATABLKSZ	EQU 7
 			    ;	
 SPR_VISIBLE EQU 128	    ;NEW FORMAT SPRITES - VISIBLE ATTRIBUTE GOES WITH PATTERN
 SPR_INVISIBLE EQU 127	    ;NEW FORMAT SPRITES - RESET VISIBLE BIT WHILE LEAVING PATTERN INTACT
@@ -18,49 +18,60 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 
         call loadspimages   ; load the sprite image data
         call initspdata     ; initialise the sprite info blocks to 0
-        ;call startspdata    ; set start positions of sprites (OLD FORMAT SPRITES)
-       call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
+        call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
         call displaysp	    ; display the sprites
 
-loop	jp mp1
+loop		    
+	ld b,46
 	ld ix,spdata
+nxtalien
 	ld h,(ix+0)	    ;increase x pos of sprite 0 and reset to 0 when it hits 320
 	ld l,(ix+1)
-	inc hl
-	ld a,h
-	and 1
-	ld h,a
-	jr z,lt255
-	ld a,l
-	cp 3fh
-	jr c,lt255
-	ld hl,0
-lt255	ld (ix+0),h
-	ld (ix+1),l
-	ld bc,DATABLKSZ	   ;now deal with sprite 1
-	add ix,bc
-	ld h,(ix+0)
-	ld l,(ix+1)
+	ld a,(alien_dir)	;0=L 1=R
+	cp 1
+	jr z,mv_r
 	dec hl
-	ld a,h
-	or l
-	jr nz, lab1
-	ld hl,304
-lab1	ld (ix+0),h
+	jr storea
+mv_r	inc hl
+storea	ld (ix+0),h
 	ld (ix+1),l
-	add ix,bc	   ;now deal with sprite 2
-	ld a,(ix+3)
-	inc a
-	cp 208
-	jr c,lab2
+
+chklbrdr	
+	ld a,(alien_dir)
+	cp 1
+	jr z,chkrbrdr
+	ld a,h
+	cp 0
+	jr nz, donxtalien
+	ld a,l
+	;or h	
+	cp 4	
+			;chk if we have hit the left side
+	jr nc,donxtalien
+	ld a,1
+	jr storenxtdir
+
+chkrbrdr
+	;ld de,260
+	;or a
+	;sbc hl,de
+	;add hl,de
+	ld a,h
+	cp 1			;check high byte
+	jr nz, donxtalien
+	ld a,l
+	cp 50
+	jr c, donxtalien
 	xor a
-lab2	ld (ix+3),a	
-	add ix,bc	   ;now deal with sprite 3
-	ld a,(ix+3)
-	dec a
-	jr nz, lab3
-	ld a,208
-lab3	ld (ix+3),a
+storenxtdir
+	ld (nxt_alien_dir),a
+donxtalien
+	ld de,DATABLKSZ
+	add ix,de
+	djnz nxtalien
+
+	ld a,(nxt_alien_dir)
+	ld (alien_dir),a
 
 mp1	ld ix,p1data	   ;now deal with PLAYER 1
 
@@ -113,11 +124,49 @@ notsp
 
 	call movep1missile
 	call displaysp
+	halt
+	;halt
 	call check_alien_hit
 	call check_player_hit
+	call display_alien_bang
+	call displaysp
 
-	halt
+	;halt
 	jp loop
+
+display_alien_bang:
+	ld ix,r1data
+	ld b,46		; total number of aliens
+	ld de,DATABLKSZ
+bangl1	ld a,(ix+6)	;get counter
+	cp 0
+	jr z, nobang
+	cp 1
+	jr z, endbang
+	cp 5
+	jr nc,bang2	;if counter is <5, display image 7 else display image 8
+	ld a, 8
+	jr bang2b
+bang2	ld a, 7
+bang2b	or SPR_VISIBLE
+	ld (ix+5),a
+	ld a,(ix+6)
+	dec a
+	ld (ix+6),a
+nobang	add ix,de
+	djnz bangl1
+	ret
+endbang	ld a,(ix+5)
+	and SPR_INVISIBLE
+	ld (ix+5),a
+
+	xor a
+	ld (ix+6),a
+	ret
+
+
+
+
 
 movep1missile
 	ld a,(p1fire)	;Check if the missile is active, return if not
@@ -125,16 +174,17 @@ movep1missile
 	ret nz
 	ld ix,p1missile
 	ld a,(ix+3)
-	dec a
-	dec a
-	dec a
-	cp 3		; We've reached the top of screen, so stop the missile
+	sub 7
+	jr c,sf		;stop firing 
+	cp 2		; We've reached the top of screen, so stop the missile
 	jr nc, firing 
-	xor a
+sf	xor a
 	ld (p1fire),a
 	ld a,(ix+5)
 	and SPR_INVISIBLE
 	ld (ix+5),a
+	ld bc,0303bh	; now check for a sprite collision
+	in a,(c)
 	ret
 firing	ld (ix+3),a
 	ret
@@ -146,16 +196,132 @@ check_alien_hit		;Check if we have hit an alien with our missile
 	ld bc,0303bh	; now check for a sprite collision
 	in a,(c)
 	rra 
-	ret nc		;collision flag isnt set, so return
-	xor a
-	ld (p1fire),a	; assume we've hit an alien so stop missile moving (need to change this logic)
+	;ret nc		;collision flag isnt set, so return. REMOVED - COLLISON BIT IS SHIT
+	ld hl,p1missile+3
+	ld a,(hl)
+	push af	; get missile Y co-ord
+r1chk	ld ix,r1data
+	ld c	,1
+	ld h,(ix+3)	; get Y-Co-ord of first row of Aliens
+	cp h
+	jr c, r2chk	; missile has gone past row 1
+ca1	sub h
+	cp 16
+	jr c, ahit
+	jr z, ahit
+r2chk	pop af
+	push af
+	ld c,2
+	ld ix,r2data	;check against 2nd row of aliens
+	ld h,(ix+3)
+	cp h
+	jr c, r3check	;
+ca2	sub h
+	cp 16
+	jr c, ahit
+	jr z, ahit
+r3check	pop af
+	push af
+	ld c,3
+	ld ix,r3data	;check against 3rd row of aliens
+	ld h,(ix+3)
+	cp h
+	jr c, r4check	;
+ca3	sub h
+	cp 15
+	jr c, ahit
+	jr z, ahit
+r4check pop af
+	push af
+	ld c,4
+	ld ix,r4data	;check against 4th row of aliens
+	ld h,(ix+3)
+	cp h
+	jr c, r5check	;
+ca4	sub h
+	cp 15
+	jr c, ahit
+	jr z, ahit
+r5check pop af
+	push af
+	ld c,5
+	ld ix,r5data	;check against 5th row of aliens
+	ld h,(ix+3)
+	cp h
+	jr c, r6check	;
+ca5	sub h
+	cp 15
+	jr c, ahit
+	jr z, ahit
+r6check pop af
+	push af
+	ld c,6
+	ld ix,r6data	;check against 6th row of aliens
+	ld h,(ix+3)
+	cp h
+	jr c, nohit
+ca6	sub h
+	cp 15
+	jr c, ahit
+	jr z, ahit
+nohit	pop af
+	ret
+ahit			; We have a hit on the Y position, lets check the X position
+	ld a,c		;c = the row weve hit
+	ld b,0		; now need to find which column
+	ld hl,spritesperrow-1	;how many sprites on the row we've hit?
+	add hl,bc
+	ld a,c
+	pop af
+	ld a,(hl)
+	ld b,a
+	ld hl,p1missile+1
+	ld a,(hl)
+	ld c,a
+			; at this point, IX points to the start of the row spdata
+			; b holds the number of aliens on this row
+			; c holds the x position of the missile
+			; lets check each alien on this row's xposition
+xchklp	
+	ld a,(ix+1)
+	sub c
+	jr nc, xchk1	; we are to the left of this alien so check next one
+	neg
+xchk1	cp 8
+	jr c, xhit	; we are too far to the right so check next one
+	jr z, xhit
+			; we are within 15 so thats a hitb
 
+nxtxchk ld de,DATABLKSZ
+	add ix,de	;move to next sprite data block
+	djnz xchklp
+	ret
+
+xhit	ld a,(ix+5)	;Lets check if the alien is visible. Return if not.
+	bit 7,a
+	ret z
+	ld a,(ix+6)
+	or a
+	ret nz
+	xor a
+	ld (p1fire),a	; we've hit an active alien so stop missile moving
+	;ld a,(ix+5)	; make alien invisible
+	;and SPR_INVISIBLE
+	;ld (ix+5),a	
+	ld a,10
+	ld (ix+6),a	;set explosion going
+	ld ix,p1missile	; make missile invisible
+	ld a,(ix+5)
+	and SPR_INVISIBLE
+	ld (ix+5),a
 	ret
 
 check_player_hit	;Check if we've been hit by an aliens missile
 	ret
 
 p1fire	defb 0		; 0 not firing. 1 firing
+alien_dir	defb 0	; 0=right, 1=left
+nxt_alien_dir	defb 0
 
 string  defb 22,1,7	    ; @ 10,13
 	defb 16, 7	    ; Magenta Ink
@@ -295,13 +461,7 @@ gun1:	db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $F8, $F8, $E3, $E3, $E3, $E3, $E3, 
         db  $E3, $E3, $E3, $FF, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FF, $E3, $E3, $E3
 
 missile1:
-	db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FC, $FC, $E3, $E3, $E3, $E3, $E3, $E3, $E3
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FC, $FC, $E3, $E3, $E3, $E3, $E3, $E3, $E3
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FC, $FC, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+	db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FC, $FC, $E3, $E3, $E3, $E3, $E3, $E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FC, $FC, $E3, $E3, $E3, $E3, $E3, $E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FC, $FC, $E3, $E3, $E3, $E3, $E3, $E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FC, $FC, $E3, $E3, $E3, $E3, $E3, $E3, $E3
@@ -311,6 +471,51 @@ missile1:
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+
+bang1img:
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $EC, $E0, $E3, $E3
+        db  $E3, $E3, $EC, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $EC, $E0, $E3, $E3, $E3
+        db  $E3, $E3, $EC, $EC, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $EC, $EC, $00, $00, $EC, $EC, $E0, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $00, $EC, $EC, $EC, $EC, $00, $E0, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $00, $EC, $EC, $EC, $EC, $00, $E0, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $EC, $EC, $00, $00, $EC, $EC, $E0, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E0, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E0, $EC, $E3, $E3, $E3, $E3, $E3, $E3, $EC, $E0, $E3, $E3, $E3
+        db  $E3, $E3, $E0, $EC, $EC, $E3, $E3, $E3, $E3, $E3, $E3, $EC, $EC, $E0, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+ 
+ 
+ 
+bang2img:
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E0, $E3, $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E3, $E3
+        db  $E3, $E0, $E0, $E3, $E3, $E3, $E0, $E3, $E3, $E3, $E3, $E0, $E0, $E3, $E3, $E3
+        db  $E3, $E3, $E0, $E0, $E3, $E3, $E0, $E3, $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E0, $E3, $E3, $E0, $E0, $E3, $E0, $E0, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $E0, $E0, $E0, $E3, $E0, $E0, $E0, $E0, $E0, $E3, $E3
+        db  $E0, $E3, $E3, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E3
+        db  $E0, $E0, $E3, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E3, $E0, $E0
+        db  $E3, $E0, $E0, $E3, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E0, $E3
+        db  $E3, $E3, $E0, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E3, $E0, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $E0, $E0, $E3, $E0, $E3, $E3, $E3, $E0, $E0, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $E3, $E3, $E0, $E3, $E0, $E0, $E0, $E3, $E3, $E0, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $E3, $E3, $E3, $E0, $E3, $E0, $E0, $E3, $E3, $E0, $E3
+        db  $E3, $E3, $E3, $E3, $E0, $E3, $E3, $E3, $E0, $E0, $E3, $E0, $E0, $E3, $E0, $E3
+        db  $E3, $E3, $E3, $E0, $E3, $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E0, $E3, $E3, $E0
+        db  $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E3, $E3
+
 
 blank	DS 32,0
 fontdata 	EQU 60000
@@ -332,51 +537,16 @@ loadspimages	ld hl,galax1		;location of sprite image
 		xor a
 		out (c),a
 
-
-		ld bc,85		;read 256 bytes of image data and write to port 85
+		ld d,9			; 8 sprites to read data for
+sploop0		ld bc,85		;read 256 bytes of image data and write to port 85 for each sprite
 		ld e,0h
 sploop1		ld a,(hl)
 		out (c),a
 		inc hl
 		dec e
 		jr nz, sploop1
-		ld e,0h
-sploop2		ld a,(hl)
-		out (c),a
-		inc hl
-		dec e
-		jr nz, sploop2
-		ld e,0h
-sploop3		ld a,(hl)
-		out (c),a
-		inc hl
-		dec e
-		jr nz, sploop3
-		ld e,0h
-		ld hl,galax4
-sploop4		ld a,(hl)
-		out (c),a
-		inc hl
-		dec e
-		jr nz, sploop4
-		ld e,0h
-sploop5		ld a,(hl)
-		out (c),a
-		inc hl
-		dec e
-		jr nz, sploop5
-		ld e,0h
-sploop6		ld a,(hl)
-		out (c),a
-		inc hl
-		dec e
-		jr nz, sploop6
-		ld e,0h
-sploop7		ld a,(hl)
-		out (c),a
-		inc hl
-		dec e
-		jr nz, sploop7	
+		dec d
+		jr nz, sploop0
 		ret
 
 initspdata	ld a,(numsprites)	; write 6 bytes of 0 for each sprite 
@@ -455,7 +625,7 @@ sprloop4	ld (ix+1),h		;x
 		dec e
 		jr nz, sprloop4
 
-		ld hl,07c00h
+		ld hl,07c01h
 		ld (ix+1),h		;x
 		ld (ix+3),l		;y
 		ld a, FLAGS
@@ -466,7 +636,7 @@ sprloop4	ld (ix+1),h		;x
 		ld bc,DATABLKSZ	
 		add ix,bc
 
-		ld hl,0B800h
+		ld hl,0B801h
 		ld (ix+1),h		;x
 		ld (ix+3),l		;y
 		ld a, FLAGS
@@ -496,6 +666,33 @@ sprloop4	ld (ix+1),h		;x
 		ld a,6
 		;or SPR_VISIBLE		;make it invisible to start with
 		ld (ix+5),a
+
+
+;FOR testing, remove one of the ROW 1 Aliens
+		;ld ix,r1data
+		;ld a,(ix+5)
+		;and SPR_INVISIBLE
+		;ld (ix+5),a
+		;ld bc,DATABLKSZ
+		;add ix,bc
+		;ld a,(ix+5)
+		;and SPR_INVISIBLE
+		;ld (ix+5),a
+
+		ld ix,r2data
+		ld a,(ix+5)
+		and SPR_INVISIBLE
+		ld (ix+5),a
+
+		ld ix,r3data
+		ld a,(ix+5)
+		and SPR_INVISIBLE
+		ld (ix+5),a
+		
+		ld ix,r6data
+		ld a,030H
+	;	ld (ix+1),a
+
 
 		ret
 
@@ -532,15 +729,19 @@ dloop1		ld bc,12347		;select sprite number
 		defb 'NUM OF SPRITES:'
 numsprites	db 48			;number of sprites
 
+spritesperrow	db 10, 10 ,10, 8, 6, 2	;number of sprites on each row
+
 		defb 'SPRITE DATA BLOCKS - 6 bytes per block:'
 spdata
 r1data		dw 0			;x pos of sprite 0
 		dw 0			;y pos
 		db 0			;flags
 		db 0			;pattern
+		db 0			;counter (used for explosions)
 
 		dw 0			;sprite 1 
 		dw 0
+		db 0
 		db 0
 		db 0
 
@@ -548,184 +749,264 @@ r1data		dw 0			;x pos of sprite 0
 		dw 0
 		db 0
 		db 0
+		db 0
 
 		dw 0			;sprite 3
 		dw 0
 		db 0
 		db 0
-
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
 		db 0
 
-		dw 0			;sprite 4 (PLAYER 1)
+		dw 0			;sprite 4 
 		dw 0
 		db 0
 		db 0
-		dw 0			;sprite 4 (PLAYER 1)
+		db 0
+
+		dw 0			;sprite 5
 		dw 0
 		db 0
 		db 0
-		dw 0			;sprite 4 (PLAYER 1)
+		db 0
+
+		dw 0			;sprite 6
 		dw 0
 		db 0
 		db 0
-		dw 0			;sprite 4 (PLAYER 1)
+		db 0
+
+		dw 0			;sprite 7
 		dw 0
 		db 0
 		db 0
-		dw 0			;sprite 4 (PLAYER 1)
+		db 0
+
+		dw 0			;sprite 8
 		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			;sprite 9
+		dw 0
+		db 0
 		db 0
 		db 0
 r2data		
-		dw 0			;sprite 4 (PLAYER 1)
+		dw 0			
 		dw 0
 		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 14 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
 		db 0
 		db 0
 
-r3data		dw 0			;sprite 4 (PLAYER 1)
+		dw 0			
 		dw 0
 		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-	
-r4data		dw 0			;sprite 4 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-	
-r5data		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
-		db 0
-		db 0
-		dw 0			;sprite 31 (PLAYER 1)
-		dw 0
 		db 0
 		db 0
 
-r6data		dw 0			;sprite 31 (PLAYER 1)
+		dw 0			
 		dw 0
 		db 0
 		db 0
-		dw 0			;sprite 31 (PLAYER 1)
+		db 0
+
+		dw 0			
 		dw 0
+		db 0
+		db 0
+		db 0
+
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+r3data		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+	
+r4data		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+	
+r5data		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+r6data		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
 		db 0
 		db 0
 
@@ -733,9 +1014,11 @@ p1data		dw 0			; PLAYER 1
 		dw 0
 		db 0
 		db 0
+		db 0
 
 p1missile	dw 0			;Player 1's Missile
 		dw 0
+		db 0
 		db 0
 		db 0
 
