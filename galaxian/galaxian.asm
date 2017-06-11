@@ -37,6 +37,9 @@ storea	ld (ix+0),h
 	ld (ix+1),l
 
 chklbrdr	
+	ld a,(ix+5)		;check if this alien is visible. Ignore it for edge detection if invisible
+	bit 7,a
+	jr z, donxtalien
 	ld a,(alien_dir)
 	cp 1
 	jr z,chkrbrdr
