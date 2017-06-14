@@ -6,8 +6,10 @@ VISIBLE		EQU 2		    ;OLD FORMAT SPRITES FLAGS - 1=visible, 0=X_MSB
 FLAGS		EQU 0		    ;NEW FORMAT SPRITES FLAGS - 0-7=palette_offset, 3=x_mirror, 2=y_mirror, 1=rotate, 0=X_MSB
 DATABLKSZ	EQU 7
 			    ;	
-SPR_VISIBLE EQU 128	    ;NEW FORMAT SPRITES - VISIBLE ATTRIBUTE GOES WITH PATTERN
+SPR_VISIBLE   EQU 128	    ;NEW FORMAT SPRITES - VISIBLE ATTRIBUTE GOES WITH PATTERN
 SPR_INVISIBLE EQU 127	    ;NEW FORMAT SPRITES - RESET VISIBLE BIT WHILE LEAVING PATTERN INTACT
+SPR_ROTATE    EQU 2	    ;NEW FORMAT SPRITES - SET ROTATE BIT
+
 start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (hl),71
 	ld a,0
@@ -22,7 +24,7 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
         call displaysp	    ; display the sprites
 
 loop		    
-	ld b,46
+	ld b,48
 	ld ix,spdata
 nxtalien
 	ld h,(ix+0)	    ;increase x pos of sprite 0 and reset to 0 when it hits 320
@@ -139,7 +141,7 @@ notsp
 
 display_alien_bang:
 	ld ix,r1data
-	ld b,46		; total number of aliens
+	ld b,48	; total number of aliens
 	ld de,DATABLKSZ
 bangl1	ld a,(ix+6)	;get counter
 	cp 0
@@ -638,6 +640,8 @@ sprloop4	ld (ix+1),h		;x
 		ld (ix+5),a		;pattern
 		ld bc,DATABLKSZ	
 		add ix,bc
+		add ix,bc
+		add ix,bc
 
 		ld hl,0B801h
 		ld (ix+1),h		;x
@@ -696,6 +700,13 @@ sprloop4	ld (ix+1),h		;x
 		ld a,030H
 	;	ld (ix+1),a
 
+		ld bc,$010a
+		call get_alien_data
+		push hl
+		pop ix
+		ld a,(ix+4)
+		or SPR_ROTATE
+		ld (ix+4),a
 
 		ret
 
@@ -729,10 +740,58 @@ dloop1		ld bc,12347		;select sprite number
 		ret
 
 
-		defb 'NUM OF SPRITES:'
-numsprites	db 48			;number of sprites
+get_alien_data				;Find the data block for sprite at b=row, c=column (row 1 is bottom row)
+		push de			; return the address of the data block in hl
+		push af
+		ld hl,0
+		ld de,spritesperrow
+		dec c
+		dec b
+		jr z, findcol
+getrowcnt	ld a,(de)
+		add a,l
+		ld l,a
+		inc de
+		djnz getrowcnt
+findcol		ld a,l
+		add a,c			
+		ld h,a			;h now points to the sprite number
+		ld d,DATABLKSZ		;d is the size of a data block
+		push bc
+		call multhbyd		;multiply h by d and get result in hl
+		pop bc
+		ld a,l
+		ld l,a
+		ld de,spdata
+		add hl,de		;hl now points to the correct data block
+		pop af
+		pop de
+		ret
 
-spritesperrow	db 10, 10 ,10, 8, 6, 2	;number of sprites on each row
+multhbyd	ld e,d              ; HL = H * D
+       		ld a,h              ; make accumulator first multiplier.
+       		ld hl,0             ; zeroise total.
+       		ld d,h              ; zeroise high byte so de=multiplier.
+      		ld b,8              ; repeat 8 times.
+imul1  		rra                 ; rotate rightmost bit into carry.
+       		jr nc,imul2         ; wasn't set.
+       		add hl,de           ; bit was set, so add de.
+       		and a               ; reset carry.
+imul2 		rl e                ; shift de 1 bit left.
+       		rl d
+       		djnz imul1          ; repeat 8 times.
+       		ret	
+
+
+
+
+
+
+
+		defb 'NUM OF SPRITES:'
+numsprites	db 50			;number of sprites
+
+spritesperrow	db 10, 10 ,10, 8, 6, 4	;number of sprites on each row
 
 		defb 'SPRITE DATA BLOCKS - 6 bytes per block:'
 spdata
@@ -1002,6 +1061,18 @@ r5data		dw 0
 		db 0
 
 r6data		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
+		dw 0
+		db 0
+		db 0
+		db 0
+
+		dw 0			
 		dw 0
 		db 0
 		db 0
