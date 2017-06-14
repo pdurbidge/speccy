@@ -86,22 +86,35 @@ nota
 	rra
 	push af
 	jr c, notp	  ;P not pressed so jump
-	ld a,(ix+1)
-	inc a
-	inc a
-	cp 250
+	ld h,(ix+0)
+	ld l,(ix+1)
+	inc hl
+	inc hl
+	ld a,h
+	or a
+	jr z,strx
+	ld a,l
+	cp 48
+	jr nc,notp
 	jr z,notp	  ;cant move more right so jump
-	ld (ix+1),a
+strx	ld (ix+0),h
+	ld (ix+1),l
 notp
 	pop af
 	rra
 	jr c, noto	  ;O not pressed so jump
-	ld a,(ix+1)
-	dec a
-	dec a
-	cp 50
+	ld h,(ix+0)
+	ld l,(ix+1)
+	dec hl
+	dec hl
+	ld a,h
+	or a
+	jr nz, strx2
+	ld a,l
+	cp 10
 	jr c,noto	  ;cant move more left so jump
-	ld (ix+1),a
+strx2	ld (ix+0),h
+	ld (ix+1),l
 noto
 	ld bc,32766	  ; Check whether the fire button is pressed (space)
 	in a,(c)
