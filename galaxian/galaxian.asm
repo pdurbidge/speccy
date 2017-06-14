@@ -127,6 +127,8 @@ noto
 	jp z, notsp 	  ; missile is already moving so ignore this key press
 	ld ix,p1missile	  ;fire has been pressed, so set x pos of missile to players position
 	ld hl,p1data
+	ld a,(hl)
+	ld (ix+0),a
 	inc hl
 	ld a,(hl)
 	ld (ix+1),a
