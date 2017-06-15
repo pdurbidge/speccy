@@ -151,6 +151,7 @@ notsp
 	call check_player_hit
 	call display_alien_bang
 	call displaysp
+	call makesound
 
 	;halt
 	jp loop
@@ -168,7 +169,18 @@ bangl1	ld a,(ix+6)	;get counter
 	jr nc,bang2	;if counter is <5, display image 7 else display image 8
 	ld a, 8
 	jr bang2b
-bang2	ld a, 7
+bang2	ld hl,snddat+2  
+	ld (hl),100
+	ld hl,sndwnp	;start explosion sound
+	ld (hl),10	; freq of white noise r6
+	inc hl
+	ld (hl),29	;mixer r7 - CHB Tone Only`
+	;ld (hl),47	;mixer r7 - CHB Noise Only
+	inc hl
+	inc hl
+	ld (hl),8	;chB amplitude
+	call makesound
+	ld a, 7
 bang2b	or SPR_VISIBLE
 	ld (ix+5),a
 	ld a,(ix+6)
@@ -183,9 +195,38 @@ endbang	ld a,(ix+5)
 
 	xor a
 	ld (ix+6),a
+	ld hl,sndv2	; turn explosion off CHB Amplitude=0
+	ld (hl),0
 	ret
 
+; Write the contents of our AY buffer to the AY registers.
 
+makesound
+       ld hl,snddat        ; start of AY-3-8912 register data.
+       ld e,0              ; start with register 0.
+       ld d,14             ; 14 to write.
+       ld c,253            ; low byte of port to write.
+w8912a ld b,255            ; 255*256+253 = port 65533 = select soundchip register.
+       out (c),e           ; tell chip which register we're writing.
+       ld a,(hl)           ; value to write.
+       ld b,191            ; 191*256+253 = port 49149 = write value to register.
+       out (c),a           ; this is what we're putting there.
+       inc e               ; next sound chip register.
+       inc hl              ; next byte to write.
+       dec d               ; decrement loop counter.
+       jp nz,w8912a        ; repeat until done.
+       ret
+
+snddat defw 0              ; tone registers, channel A. r0 r1
+       defw 0              ; channel B tone registers. r2 r3
+       defw 0              ; as above, channel C. r4 r5 
+sndwnp defb 0              ; white noise period. r6
+sndmix defb 0             ; tone/noise mixer control. r7
+sndv1  defb 0             ; channel A amplitude/envelope generator. r10
+sndv2  defb 0            ; channel B amplitude/envelope. r11
+sndv3  defb 0              ; channel C amplitude/envelope. r12
+sndenv defw 600            ; duration of each note. r13 & r14
+       defb 0
 
 
 
@@ -193,13 +234,27 @@ movep1missile
 	ld a,(p1fire)	;Check if the missile is active, return if not
 	cp 1
 	ret nz
+
+	ld hl,sndwnp	;start explosion sound
+	ld (hl),10	; freq of white noise r6
+	inc hl
+	ld a,(hl)
+	res 3,a	
+	ld (hl),a	;mixer r7 - CHA Noise Only
+	inc hl
+	ld (hl),4	;chA amplitude
 	ld ix,p1missile
 	ld a,(ix+3)
 	sub 7
 	jr c,sf		;stop firing 
 	cp 2		; We've reached the top of screen, so stop the missile
 	jr nc, firing 
-sf	xor a
+
+sf	ld hl,sndmix	; turn off missile noise
+	ld a,(hl)
+	set 3,a
+	ld (hl),a
+	xor a
 	ld (p1fire),a
 	ld a,(ix+5)
 	and SPR_INVISIBLE
