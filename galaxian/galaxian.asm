@@ -1,4 +1,4 @@
-	   org 6000H
+	   	org 6000H
 ATTRP		EQU 5C8DH	    ;SYSTEM PAPER 
 ROMCLS		EQU 0D6BH	    ;ROM CLS Routine
 ROMBDR		EQU 229BH	    ;ROM BORDER Routine
@@ -9,6 +9,7 @@ DATABLKSZ	EQU 7
 SPR_VISIBLE   EQU 128	    ;NEW FORMAT SPRITES - VISIBLE ATTRIBUTE GOES WITH PATTERN
 SPR_INVISIBLE EQU 127	    ;NEW FORMAT SPRITES - RESET VISIBLE BIT WHILE LEAVING PATTERN INTACT
 SPR_ROTATE    EQU 2	    ;NEW FORMAT SPRITES - SET ROTATE BIT
+SPR_VMIRROR   EQU 4	    ;NEW FORMAT SPRITES - SET Vertical Mirror BIT
 
 start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (hl),71
@@ -585,7 +586,7 @@ inloop1		ld bc,DATABLKSZ
 
 newstartspdata	ld de,030ah		; 3 rows of 10 aliens of type 0
 		ld ix,spdata		;set the starting params for each sprite - NEW FORMAT SPRITES
-		ld hl,04060h
+		ld hl,04080h
 sprloop2	ld (ix+1),h		;x
 		ld (ix+3),l		;y
 		ld a, FLAGS
@@ -609,7 +610,7 @@ sprloop2	ld (ix+1),h		;x
 		dec d
 		jr nz, sprloop2
 
-		ld hl,05424h
+		ld hl,05444h
 		ld e,08h
 sprloop3	ld (ix+1),h		;x
 		ld (ix+3),l		;y
@@ -627,7 +628,7 @@ sprloop3	ld (ix+1),h		;x
 		dec e
 		jr nz, sprloop3
 
-		ld hl,06812h
+		ld hl,06832h
 		ld e,06h
 sprloop4	ld (ix+1),h		;x
 		ld (ix+3),l		;y
@@ -645,7 +646,7 @@ sprloop4	ld (ix+1),h		;x
 		dec e
 		jr nz, sprloop4
 
-		ld hl,07c01h
+		ld hl,07c21h
 		ld (ix+1),h		;x
 		ld (ix+3),l		;y
 		ld a, FLAGS
@@ -658,7 +659,7 @@ sprloop4	ld (ix+1),h		;x
 		add ix,bc
 		add ix,bc
 
-		ld hl,0B801h
+		ld hl,0B821h
 		ld (ix+1),h		;x
 		ld (ix+3),l		;y
 		ld a, FLAGS
@@ -720,7 +721,7 @@ sprloop4	ld (ix+1),h		;x
 		push hl
 		pop ix
 		ld a,(ix+4)
-		or SPR_ROTATE
+		or SPR_VMIRROR
 		ld (ix+4),a
 
 		ret
