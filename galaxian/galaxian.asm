@@ -373,7 +373,14 @@ nxtxchk ld de,DATABLKSZ
 	djnz xchklp
 	ret
 
-xhit	ld a,(ix+5)	;Lets check if the alien is visible. Return if not.
+xhit	ld a,(p1missile) ;high byte x of missile
+	ld c,a
+	ld a,(ix+0)	;high byte x of alien
+	cp c
+	ret nz
+	ld hl,(p1missile)
+
+	ld a,(ix+5)	;Lets check if the alien is visible. Return if not.
 	bit 7,a
 	ret z
 	ld a,(ix+6)
