@@ -373,13 +373,10 @@ nxtxchk ld de,DATABLKSZ
 	djnz xchklp
 	ret
 
-xhit	ld a,(p1missile) ;high byte x of missile
-	ld c,a
-	ld a,(ix+0)	;high byte x of alien
-	cp c
-	ret nz
-	ld hl,(p1missile)
-
+xhit	
+	ld a,(p1missile) ; high byte of missile x pos
+	cp (ix+0)	 ; high byte of alien x pos
+	ret nz		; high bytes need to be the same for a valid hit. return if not
 	ld a,(ix+5)	;Lets check if the alien is visible. Return if not.
 	bit 7,a
 	ret z
@@ -388,9 +385,6 @@ xhit	ld a,(p1missile) ;high byte x of missile
 	ret nz
 	xor a
 	ld (p1fire),a	; we've hit an active alien so stop missile moving
-	;ld a,(ix+5)	; make alien invisible
-	;and SPR_INVISIBLE
-	;ld (ix+5),a	
 	ld a,10
 	ld (ix+6),a	;set explosion going
 	ld ix,p1missile	; make missile invisible
