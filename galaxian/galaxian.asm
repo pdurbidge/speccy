@@ -4,7 +4,7 @@ ROMCLS		EQU 0D6BH	    ;ROM CLS Routine
 ROMBDR		EQU 229BH	    ;ROM BORDER Routine
 VISIBLE		EQU 2		    ;OLD FORMAT SPRITES FLAGS - 1=visible, 0=X_MSB
 FLAGS		EQU 0		    ;NEW FORMAT SPRITES FLAGS - 0-7=palette_offset, 3=x_mirror, 2=y_mirror, 1=rotate, 0=X_MSB
-DATABLKSZ	EQU 7
+DATABLKSZ	EQU 8
 			    ;	
 SPR_VISIBLE   EQU 128	    ;NEW FORMAT SPRITES - VISIBLE ATTRIBUTE GOES WITH PATTERN
 SPR_INVISIBLE EQU 127	    ;NEW FORMAT SPRITES - RESET VISIBLE BIT WHILE LEAVING PATTERN INTACT
@@ -38,6 +38,35 @@ nxtalien
 mv_r	inc hl
 storea	ld (ix+0),h
 	ld (ix+1),l
+
+chkswarm
+	ld a,(ix+7)	   	; is this alien set to swarm
+	jr z,chklbrdr		; jump if not
+	cp 5
+	jr z,chklbrdr		;limit to 4 entries in the swarm table
+	ld hl,swarm_table	; point to swarm movement swarm_table
+	rla			; double a - 2bytes per table row
+	ld e,a
+	ld d,0
+	add hl,de		;get correct table address
+	ld d,(hl)		;get x movement delta
+	inc hl
+	ld e,(hl)	
+	ld a,(IX+7)		;get y movement delta
+	inc a			;increase swarm counter
+	ld (IX+7),a
+	ld h,(ix+1)
+	ld a,d
+	add a,h			;add x delta
+	ld (ix+1),a
+	ld h,(ix+3)
+	ld a,e			;add y delta
+	add a,h
+	ld (ix+3),a
+
+
+				;do something e.g add x & y deltas to the sprite co-ords
+
 
 chklbrdr	
 	ld a,(ix+5)		;check if this alien is visible. Ignore it for edge detection if invisible
@@ -142,6 +171,11 @@ noto
 	ld (p1fire),a
 notsp
 	pop af
+	ld bc,65022
+	in a,(c)
+	rra
+	rra
+	call nc,start_swarm
 
 	call movep1missile
 	call displaysp
@@ -179,7 +213,9 @@ bang2	ld hl,snddat+2
 	inc hl
 	inc hl
 	ld (hl),8	;chB amplitude
+	push de
 	call makesound
+	pop de
 	ld a, 7
 bang2b	or SPR_VISIBLE
 	ld (ix+5),a
@@ -229,6 +265,14 @@ sndenv defw 600            ; duration of each note. r13 & r14
        defb 0
 
 
+
+start_swarm
+	ld ix,r1data
+	ld de,DATABLKSZ
+	add ix,de
+	ld a,1
+	ld (ix+7),a
+	ret
 
 movep1missile
 	ld a,(p1fire)	;Check if the missile is active, return if not
@@ -400,6 +444,8 @@ p1fire	defb 0		; 0 not firing. 1 firing
 alien_dir	defb 0	; 0=right, 1=left
 nxt_alien_dir	defb 0
 
+swarm_table	defb -3,-3,-3,-3,-3,0,-3,3
+
 string  defb 22,1,7	    ; @ 10,13
 	defb 16, 7	    ; Magenta Ink
 	defb 'DOLLAR$OFT PRESENTS'
@@ -414,24 +460,7 @@ string  defb 22,1,7	    ; @ 10,13
 	defb 'MAY 2017'
 eostr  equ $
 
-spimg	
-	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h	; SUPER SAM MONO
-	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 24h, 24h, 24h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 0e3h, 24h, 49h, 69h, 49h, 24h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 24h, 49h, 69h, 6dh, 6dh, 69h, 24h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 24h, 69h, 6dh, 69h, 6dh, 69h, 24h, 24h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 24h, 69h, 69h, 6dh, 69h, 49h, 24h, 49h, 24h, 0e3h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 24h, 49h, 69h, 69h, 49h, 45h, 45h, 69h, 49h, 24h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 24h, 24h, 24h, 45h, 45h, 45h, 49h, 45h, 49h, 6dh, 49h, 24h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 24h, 45h, 49h, 49h, 6dh, 6dh, 69h, 45h, 69h, 49h, 6dh, 24h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 24h, 49h, 69h, 6dh, 69h, 6dh, 6dh, 69h, 24h, 49h, 69h, 24h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 24h, 45h, 69h, 6dh, 6dh, 49h, 6dh, 69h, 6dh, 24h, 45h, 24h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 24h, 6dh, 69h, 6dh, 6dh, 49h, 6dh, 69h, 45h, 24h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 0e3h, 24h, 6dh, 69h, 49h, 69h, 69h, 49h, 24h, 0e3h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 24h, 45h, 49h, 45h, 24h, 24h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 24h, 24h, 24h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
-	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
-
+	
 
 galax1	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h	; GREEN ALIEN
 	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
@@ -626,7 +655,7 @@ sploop1		ld a,(hl)
 		jr nz, sploop0
 		ret
 
-initspdata	ld a,(numsprites)	; write 6 bytes of 0 for each sprite 
+initspdata	ld a,(numsprites)	; write 7 bytes of 0 for each sprite 
 		ld hl,spdata
 		ld de,spdata+1
 inloop1		ld bc,DATABLKSZ
@@ -650,7 +679,7 @@ sprloop2	ld (ix+1),h		;x
 		xor a
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
-		ld bc,DATABLKSZ			; move onto next sprite
+		ld bc,DATABLKSZ		; move onto next sprite
 		add ix,bc
 		push de
 		ld de, 1400h
@@ -675,7 +704,7 @@ sprloop3	ld (ix+1),h		;x
 		ld a,2
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
-		ld bc,DATABLKSZ			; move onto next sprite
+		ld bc,DATABLKSZ		; move onto next sprite
 		add ix,bc		
 		push de
 		ld de,1400h
@@ -693,7 +722,7 @@ sprloop4	ld (ix+1),h		;x
 		ld a,3
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
-		ld bc,DATABLKSZ			; move onto next sprite
+		ld bc,DATABLKSZ		; move onto next sprite
 		add ix,bc		
 		push de
 		ld de,1400h
@@ -743,43 +772,7 @@ sprloop4	ld (ix+1),h		;x
 		ld a,FLAGS
 		ld (ix+4),a
 		ld a,6
-		;or SPR_VISIBLE		;make it invisible to start with
 		ld (ix+5),a
-
-
-;FOR testing, remove one of the ROW 1 Aliens
-		;ld ix,r1data
-		;ld a,(ix+5)
-		;and SPR_INVISIBLE
-		;ld (ix+5),a
-		;ld bc,DATABLKSZ
-		;add ix,bc
-		;ld a,(ix+5)
-		;and SPR_INVISIBLE
-		;ld (ix+5),a
-
-		ld ix,r2data
-		ld a,(ix+5)
-		and SPR_INVISIBLE
-		ld (ix+5),a
-
-		ld ix,r3data
-		ld a,(ix+5)
-		and SPR_INVISIBLE
-		ld (ix+5),a
-		
-		ld ix,r6data
-		ld a,030H
-	;	ld (ix+1),a
-
-		ld bc,$010a
-		call get_alien_data
-		push hl
-		pop ix
-		ld a,(ix+4)
-		or SPR_VMIRROR
-		ld (ix+4),a
-
 		ret
 
 
@@ -865,308 +858,38 @@ numsprites	db 50			;number of sprites
 
 spritesperrow	db 10, 10 ,10, 8, 6, 4	;number of sprites on each row
 
-		defb 'SPRITE DATA BLOCKS - 6 bytes per block:'
+		defb 'SPRITE DATA BLOCKS - 7 bytes per block:'
 spdata
-r1data		dw 0			;x pos of sprite 0
-		dw 0			;y pos
-		db 0			;flags
-		db 0			;pattern
-		db 0			;counter (used for explosions)
+		
+		;dw 0			;x pos of sprite 0
+		;dw 0			;y pos
+		;db 0			;flags
+		;db 0			;pattern
+		;db 0			;counter (used for explosions)
+		;db 0			;swarm counter
 
-		dw 0			;sprite 1 
-		dw 0
-		db 0
-		db 0
-		db 0
+r1data		ds 10*DATABLKSZ		; 10 sprites on Row1 
+		
 
-		dw 0			;sprite 2
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			;sprite 3
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			;sprite 4 
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			;sprite 5
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			;sprite 6
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			;sprite 7
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			;sprite 8
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			;sprite 9
-		dw 0
-		db 0
-		db 0
-		db 0
-r2data		
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
+r2data		ds 10*DATABLKSZ		; 10 sprites on Row2 
 
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
+r3data		ds 10*DATABLKSZ		; 10 sprites on Row3 
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-r3data		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
 	
-r4data		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
+r4data		ds 8*DATABLKSZ		; 8 sprites on Row4
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
+r5data		ds 6*DATABLKSZ		; 6 sprites on Row5 
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
+r6data		ds 4*DATABLKSZ		; 4 sprites on Row6 
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
+p1data		ds DATABLKSZ		; Player 1s ship
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-	
-r5data		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
+p1missile	ds DATABLKSZ		;Player 1's Missile
 
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-r6data		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-		dw 0			
-		dw 0
-		db 0
-		db 0
-		db 0
-
-p1data		dw 0			; PLAYER 1
-		dw 0
-		db 0
-		db 0
-		db 0
-
-p1missile	dw 0			;Player 1's Missile
-		dw 0
-		db 0
-		db 0
-		db 0
 
 		db 'END OF SPRITE DATA'
 
