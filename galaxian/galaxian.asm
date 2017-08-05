@@ -4,7 +4,8 @@ ROMCLS		EQU 0D6BH	    ;ROM CLS Routine
 ROMBDR		EQU 229BH	    ;ROM BORDER Routine
 VISIBLE		EQU 2		    ;OLD FORMAT SPRITES FLAGS - 1=visible, 0=X_MSB
 FLAGS		EQU 0		    ;NEW FORMAT SPRITES FLAGS - 0-7=palette_offset, 3=x_mirror, 2=y_mirror, 1=rotate, 0=X_MSB
-DATABLKSZ	EQU 8
+DATABLKSZ	EQU 16
+numaliens	equ 48		    ;number of aliens
 			    ;	
 SPR_VISIBLE   EQU 128	    ;NEW FORMAT SPRITES - VISIBLE ATTRIBUTE GOES WITH PATTERN
 SPR_INVISIBLE EQU 127	    ;NEW FORMAT SPRITES - RESET VISIBLE BIT WHILE LEAVING PATTERN INTACT
@@ -30,43 +31,23 @@ loop
 nxtalien
 	ld h,(ix+0)	    ;increase x pos of sprite 0 and reset to 0 when it hits 320
 	ld l,(ix+1)
+	ld d,(ix+8)
+	ld e,(ix+9)
 	ld a,(alien_dir)	;0=L 1=R
 	cp 1
 	jr z,mv_r
 	dec hl
+	dec de
 	jr storea
 mv_r	inc hl
+	inc de
 storea	ld (ix+0),h
 	ld (ix+1),l
-
-chkswarm
-	ld a,(ix+7)	   	; is this alien set to swarm
-	jr z,chklbrdr		; jump if not
-	cp 5
-	jr z,chklbrdr		;limit to 4 entries in the swarm table
-	ld hl,swarm_table	; point to swarm movement swarm_table
-	rla			; double a - 2bytes per table row
-	ld e,a
-	ld d,0
-	add hl,de		;get correct table address
-	ld d,(hl)		;get x movement delta
-	inc hl
-	ld e,(hl)	
-	ld a,(IX+7)		;get y movement delta
-	inc a			;increase swarm counter
-	ld (IX+7),a
-	ld h,(ix+1)
-	ld a,d
-	add a,h			;add x delta
-	ld (ix+1),a
-	ld h,(ix+3)
-	ld a,e			;add y delta
-	add a,h
-	ld (ix+3),a
-
-
-				;do something e.g add x & y deltas to the sprite co-ords
-
+	ld (ix+8),d
+	ld (ix+9),e
+	push hl
+	call chkswarm
+	pop hl
 
 chklbrdr	
 	ld a,(ix+5)		;check if this alien is visible. Ignore it for edge detection if invisible
@@ -129,6 +110,7 @@ nota
 	jr z,notp	  ;cant move more right so jump
 strx	ld (ix+0),h
 	ld (ix+1),l
+
 notp
 	pop af
 	rra
@@ -145,6 +127,7 @@ notp
 	jr c,noto	  ;cant move more left so jump
 strx2	ld (ix+0),h
 	ld (ix+1),l
+
 noto
 	ld bc,32766	  ; Check whether the fire button is pressed (space)
 	in a,(c)
@@ -171,11 +154,19 @@ noto
 	ld (p1fire),a
 notsp
 	pop af
-	ld bc,65022
+	ld bc,65022	;check if S pressed for swarm test
 	in a,(c)
 	rra
 	rra
 	call nc,start_swarm
+
+	ld bc,64510
+	in a,(c)
+	rra
+	rra
+	rra
+	rra
+	jp nc, start	;R was pressed, so reset and start again.
 
 	call movep1missile
 	call displaysp
@@ -183,12 +174,74 @@ notsp
 	;halt
 	call check_alien_hit
 	call check_player_hit
+	call check_alien_collision
 	call display_alien_bang
 	call displaysp
 	call makesound
 
 	;halt
 	jp loop
+
+chkswarm
+	ld a,(ix+7)	   	; is this alien set to swarm
+	cp 0
+	ret z			; return if not
+	cp 5
+	jr nc, usd		;if the counter is <5 set the flag to show sprite rotated
+	set 1,(IX+4)
+	jr doswarm
+usd	
+	cp 15			;if the counter is >15, set the flag to show sprite not rotated but v-Mirrored
+	jr nc, doswarm
+	set 2,(IX+4)
+	res 1,(IX+4)
+	cp 128
+	;cp 2
+	jr nz, doswarm
+	xor a
+	ld (ix+7),a
+	;res 1,(IX+4)
+	;res 2,(IX+4)
+	ret		;limit to 4 entries in the swarm table
+doswarm	ld hl,swarm_table	; point to swarm movement swarm_table
+	ld a,(ix+7)
+	dec a		
+	sla a			; double a - 2bytes per table row
+	ld e,a
+	ld d,0
+	add hl,de		;get correct table address
+	ld d,(hl)		;get x movement delta
+	inc hl
+	ld e,(hl)		;get y movement delta
+	inc (ix+7)		;increase swarm counter
+	ld h,(ix+1)
+	ld a,d
+	add a,h			;add x delta
+	cp 8
+	jr nc,chkr		;has it gone off the left? i.e. is 8 bigger than A. jump if 8 not bigger than A
+	ld a,8			
+	jr sty
+chkr	cp 250
+	jr c, sty		;has it gone off the right? i.e. is 250 less than A. jump if 250 is bigger than A
+	ld a,250
+
+sty	ld (ix+0),0
+	ld (ix+1),a
+	ld h,(ix+3)
+	ld a,e			;add y delta
+	add a,h
+	cp 250			; has it gone off the bottom?
+	jr c, stx
+	
+	ld (ix+7),0		;turn off swarming
+	ld (ix+4),0		;turn off mirroring etc
+	ld h,(ix+8)		;get shadow x
+	ld l,(ix+9)
+	ld (ix+0),h		;set x to shadow x
+	ld (ix+1),l
+	ld a,(ix+11)		;reset y to same as shadow y
+stx	ld (ix+3),a		;this line stuffs up missile detection on the bottom row if a not in the region of 80H. Suspect missile detect routine needs work.
+	ret
 
 display_alien_bang:
 	ld ix,r1data
@@ -267,10 +320,15 @@ sndenv defw 600            ; duration of each note. r13 & r14
 
 
 start_swarm
-	ld ix,r1data
+	ld ix,r5data
 	ld de,DATABLKSZ
-	add ix,de
+	;add ix,de
 	ld a,1
+	ld (ix+7),a
+	add ix,de
+	ld (ix+7),a
+	ld ix,r6data
+
 	ld (ix+7),a
 	ret
 
@@ -440,11 +498,49 @@ xhit
 check_player_hit	;Check if we've been hit by an aliens missile
 	ret
 
-p1fire	defb 0		; 0 not firing. 1 firing
+check_alien_collision	;Check if we have collided with a swarming alien
+	ld ix,r1data
+	ld b,numaliens
+colloop	ld a,(ix+7)
+	or a
+	jr z,nocol1	;this alien isn't swarming so try next one
+	ld a,(ix+3)	;get the alien y coord. 
+	cp $e8		;compare it with player
+	jr c,nocol1	;if its above it, try next alien
+	ld e,(ix+1)	;now check xpos
+	ld hl,p1data+1
+	ld a,(hl)
+	sub e
+	jr nc,chk1
+	;ld (16384),a
+	neg
+	;ld (16385),a
+chk1	cp 8
+	jr nc,nocol1
+
+	ld a,5		;There has been a collision. Do appropriate stuff (border change for now)
+	call ROMBDR
+	ret
+
+nocol1	ld de,DATABLKSZ	;no collision so move onto next alien
+	add ix,de
+	djnz colloop
+	ret
+
+
+
+p1fire		defb 0	; 0 not firing. 1 firing
 alien_dir	defb 0	; 0=right, 1=left
 nxt_alien_dir	defb 0
 
-swarm_table	defb -3,-3,-3,-3,-3,0,-3,3
+; left edge=0
+; bottom = 320
+;swarm_table	defb 0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,0,0
+swarm_table	defb 0,1, -2,-2, -2,-2, -2,-2, -2,-2, -2,-2, -2,0, -2,2, 0,2, 0,2, 0,2, 0,2, 0,2 ,0,2, 0,2, 0,2, 0,2, 0,2, 2,3, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
+		defb 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
+		defb 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
+		defb -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2
+		defb -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2 ,0,0
 
 string  defb 22,1,7	    ; @ 10,13
 	defb 16, 7	    ; Magenta Ink
@@ -655,7 +751,7 @@ sploop1		ld a,(hl)
 		jr nz, sploop0
 		ret
 
-initspdata	ld a,(numsprites)	; write 7 bytes of 0 for each sprite 
+initspdata	ld a,(numsprites)	; write DATABLKSZ bytes of 0 for each sprite 
 		ld hl,spdata
 		ld de,spdata+1
 inloop1		ld bc,DATABLKSZ
@@ -673,7 +769,9 @@ newstartspdata	ld de,030ah		; 3 rows of 10 aliens of type 0
 		ld ix,spdata		;set the starting params for each sprite - NEW FORMAT SPRITES
 		ld hl,04080h
 sprloop2	ld (ix+1),h		;x
+		ld (ix+9),h
 		ld (ix+3),l		;y
+		ld (ix+11),l		;shadow y
 		ld a, FLAGS
 		ld (ix+4),a		;flags
 		xor a
@@ -698,7 +796,9 @@ sprloop2	ld (ix+1),h		;x
 		ld hl,05444h
 		ld e,08h
 sprloop3	ld (ix+1),h		;x
+		ld (ix+9),h
 		ld (ix+3),l		;y
+		ld (ix+11),l
 		ld a, FLAGS
 		ld (ix+4),a		;flags
 		ld a,2
@@ -716,7 +816,9 @@ sprloop3	ld (ix+1),h		;x
 		ld hl,06832h
 		ld e,06h
 sprloop4	ld (ix+1),h		;x
+		ld (ix+9),h
 		ld (ix+3),l		;y
+		ld (ix+11),l
 		ld a, FLAGS
 		ld (ix+4),a		;flags
 		ld a,3
@@ -733,7 +835,9 @@ sprloop4	ld (ix+1),h		;x
 
 		ld hl,07c21h
 		ld (ix+1),h		;x
+		ld (ix+9),h
 		ld (ix+3),l		;y
+		ld (ix+11),l
 		ld a, FLAGS
 		ld (ix+4),a		;flags
 		ld a,4
@@ -746,7 +850,9 @@ sprloop4	ld (ix+1),h		;x
 
 		ld hl,0B821h
 		ld (ix+1),h		;x
+		ld (ix+9),h
 		ld (ix+3),l		;y
+		ld (ix+11),l
 		ld a, FLAGS
 		ld (ix+4),a		;flags
 		ld a,4
@@ -854,11 +960,11 @@ imul2 		rl e                ; shift de 1 bit left.
 
 
 		defb 'NUM OF SPRITES:'
-numsprites	db 50			;number of sprites
+numsprites	db 50			;number of sprites (inc player & missile)
 
 spritesperrow	db 10, 10 ,10, 8, 6, 4	;number of sprites on each row
 
-		defb 'SPRITE DATA BLOCKS - 7 bytes per block:'
+		defb 'SPRITE DATA BLOCKS - 8 bytes per block:'
 spdata
 		
 		;dw 0			;x pos of sprite 0
@@ -867,6 +973,8 @@ spdata
 		;db 0			;pattern
 		;db 0			;counter (used for explosions)
 		;db 0			;swarm counter
+		;dw 0			;shadow x (+8 +9)
+		;dw 0			;shadow y (+10 +11)
 
 r1data		ds 10*DATABLKSZ		; 10 sprites on Row1 
 		
