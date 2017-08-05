@@ -6,6 +6,7 @@ VISIBLE		EQU 2		    ;OLD FORMAT SPRITES FLAGS - 1=visible, 0=X_MSB
 FLAGS		EQU 0		    ;NEW FORMAT SPRITES FLAGS - 0-7=palette_offset, 3=x_mirror, 2=y_mirror, 1=rotate, 0=X_MSB
 DATABLKSZ	EQU 16
 numaliens	equ 48		    ;number of aliens
+delay		equ 3		    ;number of frames to delay between alien movements
 			    ;	
 SPR_VISIBLE   EQU 128	    ;NEW FORMAT SPRITES - VISIBLE ATTRIBUTE GOES WITH PATTERN
 SPR_INVISIBLE EQU 127	    ;NEW FORMAT SPRITES - RESET VISIBLE BIT WHILE LEAVING PATTERN INTACT
@@ -26,7 +27,20 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
         call displaysp	    ; display the sprites
 
 loop		    
-	ld b,48
+	ld a,(delayvar)	    ; we dont need to move the aliens every frame as that makes them too fast
+	dec a		    ; so we wait for a few frames before moving the aliens. We handle the player each frame
+	ld (delayvar),a	    ; we also need no delay on swarming aliens
+	jr nz,wait1
+	ld a,delay
+	ld (delayvar),a
+	xor a
+	ld (waitflag),a
+	jr cont
+wait1  
+	ld a,1
+	ld (waitflag),a
+
+cont	ld b,48
 	ld ix,spdata
 nxtalien
 	ld h,(ix+0)	    ;increase x pos of sprite 0 and reset to 0 when it hits 320
@@ -41,11 +55,15 @@ nxtalien
 	jr storea
 mv_r	inc hl
 	inc de
-storea	ld (ix+0),h
+storea	
+	ld a,(waitflag)
+	or a
+	jr nz,swrm
+	ld (ix+0),h
 	ld (ix+1),l
 	ld (ix+8),d
 	ld (ix+9),e
-	push hl
+swrm	push hl
 	call chkswarm
 	pop hl
 
@@ -532,6 +550,8 @@ nocol1	ld de,DATABLKSZ	;no collision so move onto next alien
 p1fire		defb 0	; 0 not firing. 1 firing
 alien_dir	defb 0	; 0=right, 1=left
 nxt_alien_dir	defb 0
+delayvar	defb 2
+waitflag	defb 0
 
 ; left edge=0
 ; bottom = 320
