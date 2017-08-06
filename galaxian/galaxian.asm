@@ -109,6 +109,18 @@ donxtalien
 
 mp1	ld ix,p1data	   ;now deal with PLAYER 1
 
+
+				; PORT AND KEY TABLE
+				;32766 B, N, M, Symbol Shift, Space
+				;49150 H, J, K, L, Enter
+				;57342 Y, U, I, O, P
+				;61438 6, 7, 8, 9, 0
+				;63486 5, 4, 3, 2, 1
+				;64510 T, R, E, W, Q
+				;65022 G, F, D, S, A
+				;65278 V, C, X, Z, Caps Shift
+
+
 nota	
 	ld bc,57342
 	in a,(c)
@@ -186,7 +198,53 @@ notsp
 	rra
 	jp nc, start	;R was pressed, so reset and start again.
 
+;######### THIS BIT IS FOR DEBUGGING AND DEVELOPMENT ONLY ############################
+alienfire
+	ld bc,65022	  ; Check whether the fire button is pressed (f)
+	in a,(c)
+	rra
+	rra
+	rra
+	rra
+	push af
+	jr c, notf	  ; nope f not pressed so jump
+
+;	jr tryam2
+
+	ld a,(a1fire)	  ;f was pressed, so check if missile1 is already active
+	cp 1
+	jp z, tryam2	  ; missile1 is already moving so try missile 2
+	ld ix,a1missile	  ;f has been pressed, so set x pos of missile to players position
+	ld de,a1fire
+	jr setxpos
+tryam2	ld a,(a2fire)	  ;f was pressed, so check if missile2 is already active
+	cp 1
+	jp z, tryam3	  ; missile2 is already moving so try missile 3
+	ld de,a2fire
+	ld ix,a2missile
+	jr setxpos
+tryam3	ld a,(a3fire)	
+	cp 1
+	jp z, notf 	  ; missile3 is already moving so exit
+	ld de,a3fire
+	ld ix,a3missile
+setxpos	ld hl,p1data
+	ld a,(hl)
+	ld (ix+0),a
+	inc hl
+	ld a,(hl)
+	ld (ix+1),a
+	ld a,50		;set y pos of missile
+	ld (ix+3),a
+	ld a,(ix+5)
+	or SPR_VISIBLE
+	ld (ix+5),a
+	ld a,1
+	ld (de),a
+notf	pop af
+;#####################################################################################
 	call movep1missile
+	call movealienmissiles
 	call displaysp
 	halt
 	;halt
@@ -385,6 +443,45 @@ sf	ld hl,sndmix	; turn off missile noise
 firing	ld (ix+3),a
 	ret
 
+movealienmissiles
+	ld a,(a1fire)	;Check if the missile is active, return if not
+	cp 1
+	jr nz, am2
+	ld ix,a1missile
+	ld de,a1fire
+	call movam
+am2	ld a,(a2fire)
+	cp 1
+	jr nz, am3
+	ld ix,a2missile
+	ld de,a2fire
+	call movam
+
+am3	ld a,(a3fire)
+	cp 1
+	ret nz
+	ld ix,a3missile
+	ld de,a3fire
+	call movam
+	ret
+
+movam
+	ld a,(ix+3)
+	add a,3
+	jr c,sf2	;stop firing 
+	cp 250		; We've reached the bottom of the screen, so stop the missile
+	jr c, firing2
+sf2	
+	xor a
+	ld (de),a
+	ld a,(ix+5)
+	and SPR_INVISIBLE
+	ld (ix+5),a
+	ret
+firing2	ld (ix+3),a
+	ret
+
+
 check_alien_hit		;Check if we have hit an alien with our missile
 	ld a,(p1fire)
 	cp 1
@@ -548,6 +645,9 @@ nocol1	ld de,DATABLKSZ	;no collision so move onto next alien
 
 
 p1fire		defb 0	; 0 not firing. 1 firing
+a1fire		defb 0  ;
+a2fire		defb 0  ;
+a3fire		defb 0  ;
 alien_dir	defb 0	; 0=right, 1=left
 nxt_alien_dir	defb 0
 delayvar	defb 2
@@ -899,6 +999,37 @@ sprloop4	ld (ix+1),h		;x
 		ld (ix+4),a
 		ld a,6
 		ld (ix+5),a
+
+		ld bc,DATABLKSZ	
+		add ix,bc		;Set alien missile 1 positions
+		ld hl, 090E0h
+		ld (ix+1),h
+		ld (ix+3),l
+		ld a,FLAGS
+		ld (ix+4),a
+		ld a,6
+		ld (ix+5),a
+
+		ld bc,DATABLKSZ	
+		add ix,bc		;Set alien missile 2 positions
+		ld hl, 090E0h
+		ld (ix+1),h
+		ld (ix+3),l
+		ld a,FLAGS
+		ld (ix+4),a
+		ld a,6
+		ld (ix+5),a
+
+		ld bc,DATABLKSZ	
+		add ix,bc		;Set alien missile 3 positions
+		ld hl, 090E0h
+		ld (ix+1),h
+		ld (ix+3),l
+		ld a,FLAGS
+		ld (ix+4),a
+		ld a,6
+		ld (ix+5),a
+
 		ret
 
 
@@ -980,7 +1111,7 @@ imul2 		rl e                ; shift de 1 bit left.
 
 
 		defb 'NUM OF SPRITES:'
-numsprites	db 50			;number of sprites (inc player & missile)
+numsprites	db 53			;number of sprites (inc player & missile & alien missiles)
 
 spritesperrow	db 10, 10 ,10, 8, 6, 4	;number of sprites on each row
 
@@ -1018,7 +1149,9 @@ p1data		ds DATABLKSZ		; Player 1s ship
 
 p1missile	ds DATABLKSZ		;Player 1's Missile
 
-
+a1missile	ds DATABLKSZ		;ALien 1 Missile
+a2missile	ds DATABLKSZ		;ALien 2 Missile
+a3missile	ds DATABLKSZ		;ALien 3 Missile
 		db 'END OF SPRITE DATA'
 
        		ORG fontdata
