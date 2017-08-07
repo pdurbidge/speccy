@@ -611,6 +611,51 @@ xhit
 	ret
 
 check_player_hit	;Check if we've been hit by an aliens missile
+	ld a,(a1fire)
+	ld ix,a1missile
+	cp 1
+	jr nz,a2chk
+	call chkmissilehit
+	or a
+	jr nz,missilehit	;Weve been hit by the missile
+a2chk	ld a,(a2fire)
+	ld ix,a2missile
+	cp 1
+	jr nz,a3chk
+	call chkmissilehit
+	or a
+	jr nz,missilehit	;Weve been hit by the missile
+a3chk	ld a,(a3fire)
+	ld ix,a3missile
+	cp 1
+	ret nz
+	call chkmissilehit
+	or a
+	ret z
+missilehit	
+	ld a,6
+	call ROMBDR
+	ret
+
+chkmissilehit			;check if the missile (ix) has hit the player. Return a <> 0 if hit.
+	ld a,(ix+3)
+	cp 240
+	jr c,nomhit		;missile is too high no hit
+	ld a,(p1data+1)		;get player x
+	sub (ix+1)
+	jr z,mhit
+	jr nc,notneg
+	neg
+notneg	cp 8
+
+	jr nc, nomhit
+	ret
+nomhit	xor a
+	ret
+mhit	ld a,1
+	ret
+
+
 	ret
 
 check_alien_collision	;Check if we have collided with a swarming alien
