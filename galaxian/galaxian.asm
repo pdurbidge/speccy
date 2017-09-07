@@ -63,6 +63,7 @@ storea
 	ld (ix+1),l
 	ld (ix+8),d
 	ld (ix+9),e
+	call init_swarm		;check whether to initiate a swarm
 swrm	push hl
 	call chkswarm
 	pop hl
@@ -190,6 +191,16 @@ notsp
 	rra
 	call nc,start_swarm
 
+	ld a,(swarming_in_progress)
+	or a
+	jr nz,dont_start_swarm		;we are already swarming so dont bother doing it again
+
+	ld a,(do_swarm)	;check if the swarm flag has been set - swarm if so
+	or a
+	call nz,start_swarm
+
+dont_start_swarm
+
 	ld bc,64510
 	in a,(c)
 	rra
@@ -258,10 +269,40 @@ notf	pop af
 	;halt
 	jp loop
 
+init_swarm
+	xor a
+	ld (do_swarm),a
+	call random			;get a random number
+	cp 7			;if it is less than 7 then swarm
+	ret nc			;else just return
+
+	ld a,1
+	ld (do_swarm),a
+	ret
+do_swarm
+	db 0			;flag - initiate a swarm if set to 1
+
+; Pseudo-random number generator.
+; Steps a pointer through the ROM (held in seed), returning the contents
+; of the byte at that location.
+
+random ld hl,(seed)        ; pointer to ROM.
+       res 5,h             ; stay within first 8K of ROM.
+       ld a,(hl)           ; get "random" number from location.
+       xor l               ; more randomness.
+       inc hl              ; increment pointer.
+       ld (seed),hl        ; new position.
+       ret
+ seed	dw 0
+ swarming_in_progress
+ 	db 0
+
 chkswarm
 	ld a,(ix+7)	   	; is this alien set to swarm
 	cp 0
 	ret z			; return if not
+
+	ld (swarming_in_progress),a	;set flag to say we are already swarming
 	cp 5
 	jr nc, usd		;if the counter is <5 set the flag to show sprite rotated
 	set 1,(IX+4)
@@ -310,6 +351,10 @@ sty	ld (ix+0),0
 	jr c, stx
 	
 	ld (ix+7),0		;turn off swarming
+	push af
+	xor a
+	ld (swarming_in_progress),a
+	pop af
 	ld (ix+4),0		;turn off mirroring etc
 	ld h,(ix+8)		;get shadow x
 	ld l,(ix+9)
@@ -317,6 +362,7 @@ sty	ld (ix+0),0
 	ld (ix+1),l
 	ld a,(ix+11)		;reset y to same as shadow y
 stx	ld (ix+3),a		;this line stuffs up missile detection on the bottom row if a not in the region of 80H. Suspect missile detect routine needs work.
+
 	ret
 
 display_alien_bang:
@@ -396,17 +442,54 @@ sndenv defw 600            ; duration of each note. r13 & r14
 
 
 start_swarm
-	ld ix,r5data
-	ld de,DATABLKSZ
-	;add ix,de
-	ld a,1
-	ld (ix+7),a
-	add ix,de
-	ld (ix+7),a
-	ld ix,r6data
+	
+	;ld ix,r5data	; To start a swarm, just set ix+7 of the correct alien to 1
+	;ld de,DATABLKSZ ; Here we are swarming 3 alens at the same time.
+	;ld a,1		 ; 
+	;ld (ix+7),a	 ;Normally we would just swarm one alien at a time 
+	;add ix,de	 ; but would do 2 or 3 when swarming the top 2 rows
+	;ld (ix+7),a
+	;ld ix,r6data
+;	ld (ix+7),a
 
-	ld (ix+7),a
+	xor a
+	ld (do_swarm),a
+
+
+	ld hl,(swarm_start_pointer)	;Point to the current position in the swarm start table (decides left or right side swarm)
+	ld a,(hl)
+	inc hl
+	ld (swarm_start_pointer),hl
+	cp 2				;2 indicates end of table - point back to the start of table again
+	jr nz, noreset
+	ld hl,swarm_start_table
+	ld (swarm_start_pointer),hl
+	ld a,(swarm_start_table)
+noreset
+	cp 0
+	jr nz, rightswarm		;0 is left swarm. 1 is right swarm
+leftswarm
+	ld bc,0101h	
+	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
+	push hl
+	pop ix
+	ld a,(ix+7)
+	cp 1
+	ret z
+	ld (ix+7),1
+	ret	
+
+rightswarm
+	ld bc,030ah	
+	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
+	push hl
+	pop ix
+	ld a,(ix+7)
+	cp 1
+	ret z
+	ld (ix+7),1
 	ret
+
 
 movep1missile
 	ld a,(p1fire)	;Check if the missile is active, return if not
@@ -701,11 +784,21 @@ waitflag	defb 0
 ; left edge=0
 ; bottom = 320
 ;swarm_table	defb 0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,0,0
-swarm_table	defb 0,1, -2,-2, -2,-2, -2,-2, -2,-2, -2,-2, -2,0, -2,2, -1,2, -1,2, 0,2, 0,2, 0,2, 0,2, 0,2 ,0,2, 0,2, 0,2, 0,2, 0,2, 1,2, 1,2, 2,3, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
+swarm_table	defb 0,1, -2,-2, -2,-2, -2,-2, -2,-2, -2,-2, -2,0, -2,2, -1,2, -1,2, 0,2, -1,2, 0,2, -1,2, -1,2 ,-1,2, -1,2, -1,2, -1,2, 0,2, 1,2, 1,2, 2,3, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
 		defb 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
 		defb 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,1, 2,1, 1,1, 1,1, 0,1, 0,1, -1,2, -1, 2
 		defb -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2
 		defb -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2 ,0,0
+
+swarm_start_pointer	
+		dw swarm_start_table
+
+swarm_start_table
+		;defb 0,0,0,0,0,0,0,0,2
+		;defb 1,1,1,1,1,1,1,1,2
+		defb 0,1,0,1,1,0,1,0,0,1,0,0,1,0,0,1,1,0,1,0,1,1,2
+
+swarmkey	defb 0
 
 string  defb 22,1,7	    ; @ 10,13
 	defb 16, 7	    ; Magenta Ink
