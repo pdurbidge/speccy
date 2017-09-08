@@ -1243,8 +1243,35 @@ imul2 		rl e                ; shift de 1 bit left.
        		ret	
 
 
+;This stores the current score as ascii chars so they are easier to display
 
+score  defb '000000'
+uscor  ld a,(hl)           ; current value of digit.
+       add a,b             ; add points to this digit.
+       ld (hl),a           ; place new digit back in string.
+       cp 58               ; more than ASCII value '9'?
+       ret c               ; no - relax.
+       sub 10              ; subtract 10.
+       ld (hl),a           ; put new character back in string.
+uscor0 dec hl              ; previous character in string.
+       inc (hl)            ; up this by one.
+       ld a,(hl)           ; what's the new value?
+       cp 58               ; gone past ASCII nine?
+       ret c               ; no, scoring done.
+       sub 10              ; down by ten.
+       ld (hl),a           ; put it back
+       jp uscor0           ; go round again.
 
+;To use this we point hl at the digit we would like to increase, place the amount we want to add in the b register, then call uscor. 
+;For example, to add 250 to the score requires 6 lines:
+;; Add 250 to the score.
+
+       ld hl,score+3       ; point to hundreds column.
+       ld b,2              ; 2 hundreds = 200.
+       call uscor          ; increment the score.
+       ld hl,score+4       ; point to tens column.
+       ld b,5              ; 5 tens = 50.
+       call uscor          ; up the score.
 
 
 
