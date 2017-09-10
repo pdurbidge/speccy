@@ -21,6 +21,7 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 
 
 
+
         call loadspimages   ; load the sprite image data
         call initspdata     ; initialise the sprite info blocks to 0
         call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
@@ -469,7 +470,15 @@ noreset
 	cp 0
 	jr nz, rightswarm		;0 is left swarm. 1 is right swarm
 leftswarm
-	ld bc,0101h	
+	;ld bc,0101h	
+	call random			;select which row will swarm
+	and 7
+	dec a
+	dec a				;ensure it is 1 to 6
+	inc a
+	ld b,a
+	ld c,1			
+
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
 	push hl
 	pop ix
@@ -477,10 +486,36 @@ leftswarm
 	cp 1
 	ret z
 	ld (ix+7),1
+	ld (ix+12),0
 	ret	
 
 rightswarm
-	ld bc,030ah	
+	;ld bc,030ah	
+	call random			;select which row will swarm
+	and 7
+	dec a
+	dec a				;ensure it is 1 to 6
+	inc a
+	ld b,a
+
+	ld a,6
+	ld b,a
+
+	cp 6
+	jr nz,notrow6
+	ld c,4
+	jr l1
+notrow6	cp 5
+	jr nz,notrow5
+	ld c,6
+	jr l1
+notrow5 cp 4
+	jr nz,notrow4
+	ld c,8
+	jr l1
+notrow4
+	ld c,0ah
+l1
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
 	push hl
 	pop ix
@@ -488,6 +523,7 @@ rightswarm
 	cp 1
 	ret z
 	ld (ix+7),1
+	ld (ix+12),1
 	ret
 
 
@@ -1102,7 +1138,7 @@ sprloop4	ld (ix+1),h		;x
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
 		ld bc,DATABLKSZ	
-		add ix,bc
+		add ix,bc		; miss out 2 sprites on row 6 - they dont really exist
 		add ix,bc
 		add ix,bc
 
@@ -1278,7 +1314,7 @@ uscor0 dec hl              ; previous character in string.
 		defb 'NUM OF SPRITES:'
 numsprites	db 53			;number of sprites (inc player & missile & alien missiles)
 
-spritesperrow	db 10, 10 ,10, 8, 6, 4	;number of sprites on each row
+spritesperrow	db 10, 10 ,10, 8, 6, 4	;last was 4? number of sprites on each row
 
 		defb 'SPRITE DATA BLOCKS - 8 bytes per block:'
 spdata
@@ -1288,9 +1324,10 @@ spdata
 		;db 0			;flags
 		;db 0			;pattern
 		;db 0			;counter (used for explosions)
-		;db 0			;swarm counter
+		;db 0			;swarm counter (+7)
 		;dw 0			;shadow x (+8 +9)
 		;dw 0			;shadow y (+10 +11)
+		;db 0			;swarm direction (+12)
 
 r1data		ds 10*DATABLKSZ		; 10 sprites on Row1 
 		
