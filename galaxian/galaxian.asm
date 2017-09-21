@@ -321,8 +321,14 @@ usd
 	;res 1,(IX+4)
 	;res 2,(IX+4)
 	ret		;limit to 4 entries in the swarm table
-doswarm	ld hl,swarm_table	; point to swarm movement swarm_table
-	ld a,(ix+7)
+doswarm	ld a,(ix+12)		; get swarm direction
+	cp 0
+	jr nz,setrswm
+	ld hl,l_swarm_table	; point to swarm movement swarm_table
+	jr swrmnow
+setrswm	ld hl,r_swarm_table
+
+swrmnow	ld a,(ix+7)
 	dec a		
 	sla a			; double a - 2bytes per table row
 	ld e,a
@@ -332,26 +338,70 @@ doswarm	ld hl,swarm_table	; point to swarm movement swarm_table
 	inc hl
 	ld e,(hl)		;get y movement delta
 	inc (ix+7)		;increase swarm counter
-	ld h,(ix+1)
-	ld a,d
-	add a,h			;add x delta
+	ld h,(ix+0)
+	ld l,(ix+1)		;TODO Make this a 16 bit add
+
+	push de
+	ld e,d
+	bit 7,e
+	jr nz, negdelta
+	ld d,0
+	jr storexd
+negdelta
+	ld d,255
+storexd	
+	add hl,de			;add x delta
+	pop de
+
+	ld a,h
+	cp 1
+	jr nz,chkxl		;MSB not set so check x left pos
+
+	ld a,l
+	cp 48
+	;jr c,sty		;has it gone off right. i.e is 48 bigger than A. Jump if 48 not bigger than A
+	;jr z,sty
+	jr c,chkxl
+	;jr z, chkxl
+
+				;So, here we have gone off the right edge. Fix it.
+	;ld hl,302
+
+	ld h,1
+	ld l,50
+
+	jr sty
+
+
+
+chkxl	
+	ld a,h
+	cp 1
+	jr z,sty		;if msb is set then its not at the left so jump over this stuff`
+	ld a,l
 	cp 8
 	jr nc,chkr		;has it gone off the left? i.e. is 8 bigger than A. jump if 8 not bigger than A
-	ld a,8			
-	jr sty
-chkr	cp 250
-	jr c, sty		;has it gone off the right? i.e. is 250 less than A. jump if 250 is bigger than A
-	ld a,250
+	ld a,8
+	ld hl,8			
+	;jr sty
+chkr	;cp 252
+	;jr c, sty		;has it gone off the right? i.e. is 250 less than A. jump if 250 is bigger than A
+	;ld (16384),a
+	;ld a,252
 
-sty	ld (ix+0),0
-	ld (ix+1),a
+sty	ld (ix+0),h
+	ld (ix+1),l
+	;ld a,h
+	;ld (16390),a
+	;ld a,l
+	;ld (16391),a
 	ld h,(ix+3)
 	ld a,e			;add y delta
 	add a,h
 	cp 250			; has it gone off the bottom?
 	jr c, stx
 	
-	ld (ix+7),0		;turn off swarming
+	ld (ix+7),0		;It has gone off the bottom so turn off swarming
 	push af
 	xor a
 	ld (swarming_in_progress),a
@@ -468,16 +518,16 @@ start_swarm
 	ld a,(swarm_start_table)
 noreset
 	cp 0
-	jr nz, rightswarm		;0 is left swarm. 1 is right swarm
-leftswarm
+	jr nz, rightswarm		;0 is left swarm. 1 is right swarm leftswarm
+	;jr rightswarm
 	;ld bc,0101h	
 	call random			;select which row will swarm
 	and 7
 	dec a
-	dec a				;ensure it is 1 to 6
-	inc a
+	;dec a				;ensure it is 1 to 6
+	;inc a
 	ld b,a
-	ld c,1			
+	ld c,1				;TODO - work inwards if leftmost sprite is dead
 
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
 	push hl
@@ -498,8 +548,8 @@ rightswarm
 	inc a
 	ld b,a
 
-	ld a,6
-	ld b,a
+	;ld a,6
+	;ld b,a
 
 	cp 6
 	jr nz,notrow6
@@ -791,9 +841,8 @@ colloop	ld a,(ix+7)
 	ld a,(hl)
 	sub e
 	jr nc,chk1
-	;ld (16384),a
 	neg
-	;ld (16385),a
+
 chk1	cp 8
 	jr nc,nocol1
 
@@ -820,7 +869,13 @@ waitflag	defb 0
 ; left edge=0
 ; bottom = 320
 ;swarm_table	defb 0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,-2,0,0,0
-swarm_table	defb 0,1, -2,-2, -2,-2, -2,-2, -2,-2, -2,-2, -2,0, -2,2, -1,2, -1,2, 0,2, -1,2, 0,2, -1,2, -1,2 ,-1,2, -1,2, -1,2, -1,2, 0,2, 1,2, 1,2, 2,3, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
+l_swarm_table	defb 0,1, -2,-2, -2,-2, -2,-2, -2,-2, -2,-2, -2,0, -2,2, -1,2, -1,2, 0,2, -1,2, 0,2, -1,2, -1,2 ,-1,2, -1,2, -1,2, -1,2, 0,2, 1,2, 1,2, 2,3, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
+		defb 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
+		defb 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,1, 2,1, 1,1, 1,1, 0,1, 0,1, -1,2, -1, 2
+		defb -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2
+		defb -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2 ,0,0
+
+r_swarm_table	defb 0,1, 2,-2, 2,-2, 2,-2, 2,-2, 2,-2, 2,0, 2,2, 1,2, 1,2, 0,2, 1,2, 0,2, 1,2, 1,2 ,1,2, 1,2, 1,2, 1,2, 0,2, 1,2, 1,2, 2,3, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
 		defb 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2
 		defb 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,2, 2,1, 2,1, 1,1, 1,1, 0,1, 0,1, -1,2, -1, 2
 		defb -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2, -2,2
