@@ -339,7 +339,7 @@ swrmnow	ld a,(ix+7)
 	ld e,(hl)		;get y movement delta
 	inc (ix+7)		;increase swarm counter
 	ld h,(ix+0)
-	ld l,(ix+1)		;TODO Make this a 16 bit add
+	ld l,(ix+1)		
 
 	push de
 	ld e,d
@@ -350,7 +350,7 @@ swrmnow	ld a,(ix+7)
 negdelta
 	ld d,255
 storexd	
-	add hl,de			;add x delta
+	add hl,de		;add x delta
 	pop de
 
 	ld a,h
@@ -523,11 +523,20 @@ noreset
 	;ld bc,0101h	
 	call random			;select which row will swarm
 	and 7
+	cp 0
+	jr z,l1ax			;if it is already 0 dont dec it as that will make it 255
 	dec a
+	jr l1x
+l1ax	ld a,1	
 	;dec a				;ensure it is 1 to 6
 	;inc a
-	ld b,a
+l1x	ld b,a
 	ld c,1				;TODO - work inwards if leftmost sprite is dead
+
+	ld a,b
+	ld (16384),a
+	ld a,c
+	ld (16385),a
 
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
 	push hl
@@ -543,15 +552,20 @@ rightswarm
 	;ld bc,030ah	
 	call random			;select which row will swarm
 	and 7
-	dec a
+	cp 0
+	jr z,l2x
 	dec a				;ensure it is 1 to 6
-	inc a
+
+l2x	ld b,a
+	cp 0
+	jr nz,notrow0			;if it 0 set it to 1
+	ld a,1
 	ld b,a
 
 	;ld a,6
 	;ld b,a
-
-	cp 6
+					;Work out the sprite number of the RHS Sprite
+notrow0	cp 6				;It is different depending on what the row is
 	jr nz,notrow6
 	ld c,4
 	jr l1
@@ -566,6 +580,11 @@ notrow5 cp 4
 notrow4
 	ld c,0ah
 l1
+	ld a,b
+	ld (16384),a
+	ld a,c
+	ld (16385),a
+
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
 	push hl
 	pop ix
