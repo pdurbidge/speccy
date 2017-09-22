@@ -44,7 +44,7 @@ wait1
 cont	ld b,48
 	ld ix,spdata
 nxtalien
-	ld h,(ix+0)	    ;increase x pos of sprite 0 and reset to 0 when it hits 320
+	ld h,(ix+0)	    
 	ld l,(ix+1)
 	ld d,(ix+8)
 	ld e,(ix+9)
@@ -57,6 +57,7 @@ nxtalien
 mv_r	inc hl
 	inc de
 storea	
+	push hl
 	ld a,(waitflag)
 	or a
 	jr nz,swrm
@@ -64,8 +65,10 @@ storea
 	ld (ix+1),l
 	ld (ix+8),d
 	ld (ix+9),e
+	;push hl
 	call init_swarm		;check whether to initiate a swarm
-swrm	push hl
+	;pop hl
+swrm	;push hl
 	call chkswarm
 	pop hl
 
@@ -73,18 +76,21 @@ chklbrdr
 	ld a,(ix+5)		;check if this alien is visible. Ignore it for edge detection if invisible
 	bit 7,a
 	jr z, donxtalien
+	ld a,(ix+7)		;check if this alien is swarming. Ignore it for edge detection if swarming
+	cp 0
+	jr nz,donxtalien
+
 	ld a,(alien_dir)
 	cp 1
 	jr z,chkrbrdr
-	ld a,h
+	ld a,h			
 	cp 0
 	jr nz, donxtalien
-	ld a,l
-	;or h	
+	ld a,l			
 	cp 4	
-			;chk if we have hit the left side
-	jr nc,donxtalien
-	ld a,1
+				;chk if we have hit the left side
+	jr nc,donxtalien 	;not hit the left
+	ld a,1			;we've hit the left
 	jr storenxtdir
 
 chkrbrdr
@@ -92,12 +98,17 @@ chkrbrdr
 	;or a
 	;sbc hl,de
 	;add hl,de
-	ld a,h
+
+	;ld a,h
+	ld a,(ix+0)		;should be able to use hl here, but it has become corrupted so re-reading ix instead
 	cp 1			;check high byte
 	jr nz, donxtalien
-	ld a,l
+	;ld a,l
+	ld a,(ix+1)
 	cp 50
 	jr c, donxtalien
+
+
 	xor a
 storenxtdir
 	ld (nxt_alien_dir),a
@@ -402,17 +413,17 @@ sty	ld (ix+0),h
 	jr c, stx
 	
 	ld (ix+7),0		;It has gone off the bottom so turn off swarming
-	push af
+	;push af
 	xor a
 	ld (swarming_in_progress),a
-	pop af
+	;pop af
 	ld (ix+4),0		;turn off mirroring etc
 	ld h,(ix+8)		;get shadow x
 	ld l,(ix+9)
 	ld (ix+0),h		;set x to shadow x
 	ld (ix+1),l
 	ld a,(ix+11)		;reset y to same as shadow y
-stx	ld (ix+3),a		;this line stuffs up missile detection on the bottom row if a not in the region of 80H. Suspect missile detect routine needs work.
+stx	ld (ix+3),a		
 
 	ret
 
@@ -533,11 +544,6 @@ l1ax	ld a,1
 l1x	ld b,a
 	ld c,1				;TODO - work inwards if leftmost sprite is dead
 
-	ld a,b
-	ld (16384),a
-	ld a,c
-	ld (16385),a
-
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
 	push hl
 	pop ix
@@ -580,11 +586,6 @@ notrow5 cp 4
 notrow4
 	ld c,0ah
 l1
-	ld a,b
-	ld (16384),a
-	ld a,c
-	ld (16385),a
-
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
 	push hl
 	pop ix
