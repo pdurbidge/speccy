@@ -12,6 +12,7 @@ SPR_VISIBLE   EQU 128	    ;NEW FORMAT SPRITES - VISIBLE ATTRIBUTE GOES WITH PATT
 SPR_INVISIBLE EQU 127	    ;NEW FORMAT SPRITES - RESET VISIBLE BIT WHILE LEAVING PATTERN INTACT
 SPR_ROTATE    EQU 2	    ;NEW FORMAT SPRITES - SET ROTATE BIT
 SPR_VMIRROR   EQU 4	    ;NEW FORMAT SPRITES - SET Vertical Mirror BIT
+SWARM_VALUE   EQU 127	    ;Swarm if the random number is less than this value - used to speed up or slow down swarming
 
 start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (hl),71
@@ -285,7 +286,7 @@ init_swarm
 	xor a
 	ld (do_swarm),a
 	call random			;get a random number
-	cp 7			;if it is less than 7 then swarm
+	cp SWARM_VALUE			;if it is less than 7 then swarm
 	ret nc			;else just return
 
 	ld a,1
@@ -533,26 +534,37 @@ noreset
 	;jr rightswarm
 	;ld bc,0101h	
 	call random			;select which row will swarm
-	and 7
+	and 7				;ensure it is 1 to 6
 	cp 0
 	jr z,l1ax			;if it is already 0 dont dec it as that will make it 255
 	dec a
 	jr l1x
 l1ax	ld a,1	
-	;dec a				;ensure it is 1 to 6
-	;inc a
-l1x	ld b,a
-	ld c,1				;TODO - work inwards if leftmost sprite is dead
 
+l1x	ld b,a
+	ld c,1				;start at col 1 then work inwards if leftmost sprite is dead
+
+left_loop
+	push bc
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
+	pop bc
 	push hl
 	pop ix
-	ld a,(ix+7)
+	ld a,(ix+5)			;check if this alien is invisible
+	bit 7,a
+	jr z,find_next_lspot
+	ld a,(ix+7)			;check if this alien is swarming
 	cp 1
 	ret z
 	ld (ix+7),1
 	ld (ix+12),0
 	ret	
+find_next_lspot
+	inc c
+	cp 5
+	jr nc,left_loop
+	ret
+
 
 rightswarm
 	;ld bc,030ah	
@@ -568,8 +580,6 @@ l2x	ld b,a
 	ld a,1
 	ld b,a
 
-	;ld a,6
-	;ld b,a
 					;Work out the sprite number of the RHS Sprite
 notrow0	cp 6				;It is different depending on what the row is
 	jr nz,notrow6
@@ -586,16 +596,25 @@ notrow5 cp 4
 notrow4
 	ld c,0ah
 l1
+	push bc
 	call get_alien_data		;get hl=address of sprite data for sprite at y=b,x=c
+	pop bc
 	push hl
 	pop ix
+	ld a,(ix+5)			;check if this alien is invisible
+	bit 7,a
+	jr z,find_next_rspot
 	ld a,(ix+7)
 	cp 1
 	ret z
 	ld (ix+7),1
 	ld (ix+12),1
 	ret
-
+find_next_rspot
+	dec c
+	cp 5
+	jr nc,l1
+	ret
 
 movep1missile
 	ld a,(p1fire)	;Check if the missile is active, return if not
@@ -670,20 +689,23 @@ sf2
 firing2	ld (ix+3),a
 	ret
 
-
+			;TODO THIS DOESN'T DETECT HITTING SWARMING ALIENS VERY WELL
+			;NEED TO REDO SO IT CHECKS EACH VISIBLE ALIENT TO SEE IF ITS BEEN HITTING
+			;PROBABLY SIMPLER THAT WAY ANYWAY
+			
 check_alien_hit		;Check if we have hit an alien with our missile
 	ld a,(p1fire)
 	cp 1
 	ret nz		; we dont have an active missile, so retun
-	ld bc,0303bh	; now check for a sprite collision
-	in a,(c)
-	rra 
+	;ld bc,0303bh	; now check for a sprite collision
+	;in a,(c)
+	;rra 
 	;ret nc		;collision flag isnt set, so return. REMOVED - COLLISON BIT IS SHIT
 	ld hl,p1missile+3
 	ld a,(hl)
 	push af	; get missile Y co-ord
 r1chk	ld ix,r1data
-	ld c	,1
+	ld c,1
 	ld h,(ix+3)	; get Y-Co-ord of first row of Aliens
 	cp h
 	jr c, r2chk	; missile has gone past row 1
