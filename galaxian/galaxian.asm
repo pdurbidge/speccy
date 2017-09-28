@@ -689,11 +689,85 @@ sf2
 firing2	ld (ix+3),a
 	ret
 
+check_alien_hit
+	ld a,(p1fire)
+	cp 1
+	ret nz		; we dont have an active missile, so retun
+	ld b,47
+	ld ix,r1data
+alien_chk_loop
+
+	ld a,(ix+5)	;is this alien visible?
+	bit 7,a
+	jr z,chk_nxt_alien
+
+	ld hl,p1missile+3
+	ld a,(hl)	;get missile y co-ord
+
+	ld h,(ix+3)
+	cp h
+	jr c, chk_nxt_alien
+	sub h
+	cp 16
+	jr c, yhit	;y co-ords match, so lets check the x co-ords
+	jr z,yhit
+chk_nxt_alien		
+	ld de,DATABLKSZ	;we've not hit this one, lets check the next one
+	add ix,de
+	djnz alien_chk_loop
+	ret
+
+yhit
+
+
+	ld hl,p1missile
+	ld d,(hl)
+	inc hl
+	ld e,(hl)	;de = missile xpos 16bit
+
+	ld h,(ix+0)
+	ld l,(ix+1)	;hl = alien xpos 16bit
+
+	or a
+	sbc hl,de	
+	jr c, hlbigger
+	ld de,8
+	sbc hl,de
+	jr nc, chk_nxt_alien
+	jr yhit1
+hlbigger
+	xor a		;neg hl
+	sub l
+	ld l,a
+	sbc a,a
+	sub h
+	ld h,a
+	ld de,8
+	sbc hl,de
+	jr nc,chk_nxt_alien
+
+yhit1 	
+
+	ld a,(ix+6)	; is it already exploding?
+	or a
+	jr nz,chk_nxt_alien
+
+	
+	xor a
+	ld (p1fire),a	; we've hit an active alien so stop missile moving
+	ld a,10
+	ld (ix+6),a	;set explosion going
+	ld ix,p1missile	; make missile invisible
+	ld a,(ix+5)
+	and SPR_INVISIBLE
+	ld (ix+5),a
+	ret
+;##################################################################################################
 			;TODO THIS DOESN'T DETECT HITTING SWARMING ALIENS VERY WELL
 			;NEED TO REDO SO IT CHECKS EACH VISIBLE ALIENT TO SEE IF ITS BEEN HITTING
 			;PROBABLY SIMPLER THAT WAY ANYWAY
-			
-check_alien_hit		;Check if we have hit an alien with our missile
+
+old_check_alien_hit		;Check if we have hit an alien with our missile
 	ld a,(p1fire)
 	cp 1
 	ret nz		; we dont have an active missile, so retun
@@ -820,6 +894,8 @@ xhit
 	and SPR_INVISIBLE
 	ld (ix+5),a
 	ret
+;############################################################################
+
 
 check_player_hit	;Check if we've been hit by an aliens missile
 	ld a,(a1fire)
