@@ -693,7 +693,7 @@ check_alien_hit
 	ld a,(p1fire)
 	cp 1
 	ret nz		; we dont have an active missile, so retun
-	ld b,47
+	ld b,48
 	ld ix,r1data
 alien_chk_loop
 
