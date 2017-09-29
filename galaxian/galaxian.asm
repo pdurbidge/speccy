@@ -271,6 +271,7 @@ notf	pop af
 	call movealienmissiles
 	call displaysp
 	halt
+
 	;halt
 	call check_alien_hit
 	call check_player_hit
@@ -530,7 +531,8 @@ start_swarm
 	ld a,(swarm_start_table)
 noreset
 	cp 0
-	jr nz, rightswarm		;0 is left swarm. 1 is right swarm leftswarm
+	jp nz, rightswarm		;0 is left swarm. 1 is right swarm leftswarm
+
 	;jr rightswarm
 	;ld bc,0101h	
 	call random			;select which row will swarm
@@ -552,19 +554,104 @@ left_loop
 	pop ix
 	ld a,(ix+5)			;check if this alien is invisible
 	bit 7,a
-	jr z,find_next_lspot
+	jp z,find_next_lspot
 	ld a,(ix+7)			;check if this alien is swarming
 	cp 1
 	ret z
 	ld (ix+7),1
 	ld (ix+12),0
-	ret	
+	ld a,b				;check if it this alien is on the top 2 rows
+	cp 5
+	jr nz, notarow5
+
+	inc c				;this is row 5, so try to swarm next neighbour and above neighbour
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	jr z,toprow1
+	ld (ix+7),1
+	ld (ix+12),0
+
+toprow1 
+	ld bc,$0601
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	ret z
+	ld (ix+7),1
+	ld (ix+12),0
+
+	ret
+notarow5
+	cp 6
+	ret nz
+
+	ld hl,0
+	ld (row5count),hl
+	ld bc,$0501				;this is row 6, so try to swarm below neighbour and its next neighbour
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	jr z,no1isdead
+	ld (ix+7),1
+	ld (ix+12),0
+	ld hl,row5count
+	inc (hl)
+no1isdead
+	ld bc,$0502				;this is row 6, so try to swarm below neighbour and its next neighbour
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	jr z,no2isdead
+	ld (ix+7),1
+	ld (ix+12),0
+	ld hl,row5count
+	inc (hl)
+no2isdead
+	ld hl,(row5count)
+	ld a,l
+	cp 2
+	ret z
+
+	ld bc,$0503				;this is row 6, so try to swarm below neighbour and its next neighbour
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	ret z
+	ld (ix+7),1
+	ld (ix+12),0
+	ld hl,row5count
+	inc (hl)
+	ret
+
 find_next_lspot
 	inc c
 	cp 5
-	jr nc,left_loop
+	jp nc,left_loop
 	ret
 
+row5count
+	dw 0
 
 rightswarm
 	;ld bc,030ah	
@@ -603,17 +690,97 @@ l1
 	pop ix
 	ld a,(ix+5)			;check if this alien is invisible
 	bit 7,a
-	jr z,find_next_rspot
+	jp z,find_next_rspot
 	ld a,(ix+7)
 	cp 1
 	ret z
 	ld (ix+7),1
 	ld (ix+12),1
+	ld a,b				;check if it this alien is on the top 2 rows
+	cp 5
+	jr nz, notbrow5
+	dec c				;this is row 5, so try to swarm next neighbour and above neighbour
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	jr z,toprow1a
+	ld (ix+7),1
+	ld (ix+12),1
+toprow1a
+	ld bc,$0604
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	ret z
+	ld (ix+7),1
+	ld (ix+12),1
+	ret
+notbrow5
+	cp 6
+	ret nz
+					;this is row 6. select 2 from the row below
+	ld hl,0
+	ld (row5count),hl
+	ld bc,$0506				;this is row 6, so try to swarm below neighbour and its next neighbour
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	jr z,no1isdead2
+	ld (ix+7),1
+	ld (ix+12),1
+	ld hl,row5count
+	inc (hl)
+no1isdead2
+	ld bc,$0505				;this is row 6, so try to swarm below neighbour and its next neighbour
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	jr z,no2isdead2
+	ld (ix+7),1
+	ld (ix+12),1
+	ld hl,row5count
+	inc (hl)
+no2isdead2
+	ld hl,(row5count)
+	ld a,l
+	cp 2
+	ret z
+
+	ld bc,$0504				;this is row 6, so try to swarm below neighbour and its next neighbour
+	push bc
+	call get_alien_data
+	pop bc
+	push hl
+	pop ix
+	ld a,(ix+5)
+	bit 7,a
+	ret z
+	ld (ix+7),1
+	ld (ix+12),1
+	ld hl,row5count
+	inc (hl)
+	ret
 	ret
 find_next_rspot
 	dec c
 	cp 5
-	jr nc,l1
+	jp nc,l1
 	ret
 
 movep1missile
@@ -762,139 +929,6 @@ yhit1
 	and SPR_INVISIBLE
 	ld (ix+5),a
 	ret
-;##################################################################################################
-			;TODO THIS DOESN'T DETECT HITTING SWARMING ALIENS VERY WELL
-			;NEED TO REDO SO IT CHECKS EACH VISIBLE ALIENT TO SEE IF ITS BEEN HITTING
-			;PROBABLY SIMPLER THAT WAY ANYWAY
-
-old_check_alien_hit		;Check if we have hit an alien with our missile
-	ld a,(p1fire)
-	cp 1
-	ret nz		; we dont have an active missile, so retun
-	;ld bc,0303bh	; now check for a sprite collision
-	;in a,(c)
-	;rra 
-	;ret nc		;collision flag isnt set, so return. REMOVED - COLLISON BIT IS SHIT
-	ld hl,p1missile+3
-	ld a,(hl)
-	push af	; get missile Y co-ord
-r1chk	ld ix,r1data
-	ld c,1
-	ld h,(ix+3)	; get Y-Co-ord of first row of Aliens
-	cp h
-	jr c, r2chk	; missile has gone past row 1
-ca1	sub h
-	cp 16
-	jr c, ahit
-	jr z, ahit
-r2chk	pop af
-	push af
-	ld c,2
-	ld ix,r2data	;check against 2nd row of aliens
-	ld h,(ix+3)
-	cp h
-	jr c, r3check	;
-ca2	sub h
-	cp 16
-	jr c, ahit
-	jr z, ahit
-r3check	pop af
-	push af
-	ld c,3
-	ld ix,r3data	;check against 3rd row of aliens
-	ld h,(ix+3)
-	cp h
-	jr c, r4check	;
-ca3	sub h
-	cp 15
-	jr c, ahit
-	jr z, ahit
-r4check pop af
-	push af
-	ld c,4
-	ld ix,r4data	;check against 4th row of aliens
-	ld h,(ix+3)
-	cp h
-	jr c, r5check	;
-ca4	sub h
-	cp 15
-	jr c, ahit
-	jr z, ahit
-r5check pop af
-	push af
-	ld c,5
-	ld ix,r5data	;check against 5th row of aliens
-	ld h,(ix+3)
-	cp h
-	jr c, r6check	;
-ca5	sub h
-	cp 15
-	jr c, ahit
-	jr z, ahit
-r6check pop af
-	push af
-	ld c,6
-	ld ix,r6data	;check against 6th row of aliens
-	ld h,(ix+3)
-	cp h
-	jr c, nohit
-ca6	sub h
-	cp 15
-	jr c, ahit
-	jr z, ahit
-nohit	pop af
-	ret
-ahit			; We have a hit on the Y position, lets check the X position
-	ld a,c		;c = the row weve hit
-	ld b,0		; now need to find which column
-	ld hl,spritesperrow-1	;how many sprites on the row we've hit?
-	add hl,bc
-	ld a,c
-	pop af
-	ld a,(hl)
-	ld b,a
-	ld hl,p1missile+1
-	ld a,(hl)
-	ld c,a
-			; at this point, IX points to the start of the row spdata
-			; b holds the number of aliens on this row
-			; c holds the x position of the missile
-			; lets check each alien on this row's xposition
-xchklp	
-	ld a,(ix+1)
-	sub c
-	jr nc, xchk1	; we are to the left of this alien so check next one
-	neg
-xchk1	cp 8
-	jr c, xhit	; we are too far to the right so check next one
-	jr z, xhit
-			; we are within 15 so thats a hitb
-
-nxtxchk ld de,DATABLKSZ
-	add ix,de	;move to next sprite data block
-	djnz xchklp
-	ret
-
-xhit	
-	ld a,(p1missile) ; high byte of missile x pos
-	cp (ix+0)	 ; high byte of alien x pos
-	ret nz		; high bytes need to be the same for a valid hit. return if not
-	ld a,(ix+5)	;Lets check if the alien is visible. Return if not.
-	bit 7,a
-	ret z
-	ld a,(ix+6)
-	or a
-	ret nz
-	xor a
-	ld (p1fire),a	; we've hit an active alien so stop missile moving
-	ld a,10
-	ld (ix+6),a	;set explosion going
-	ld ix,p1missile	; make missile invisible
-	ld a,(ix+5)
-	and SPR_INVISIBLE
-	ld (ix+5),a
-	ret
-;############################################################################
 
 
 check_player_hit	;Check if we've been hit by an aliens missile
@@ -904,14 +938,14 @@ check_player_hit	;Check if we've been hit by an aliens missile
 	jr nz,a2chk
 	call chkmissilehit
 	or a
-	jr nz,missilehit	;Weve been hit by the missile
+	jr nz,missilehit	;'Weve' been hit by the missile
 a2chk	ld a,(a2fire)
 	ld ix,a2missile
 	cp 1
 	jr nz,a3chk
 	call chkmissilehit
 	or a
-	jr nz,missilehit	;Weve been hit by the missile
+	jr nz,missilehit	;We've been hit by the missile
 a3chk	ld a,(a3fire)
 	ld ix,a3missile
 	cp 1
@@ -920,8 +954,8 @@ a3chk	ld a,(a3fire)
 	or a
 	ret z
 missilehit	
-	ld a,6
-	call ROMBDR
+	;ld a,6
+	;call ROMBDR
 	ret
 
 chkmissilehit			;check if the missile (ix) has hit the player. Return a <> 0 if hit.
@@ -964,8 +998,8 @@ colloop	ld a,(ix+7)
 chk1	cp 8
 	jr nc,nocol1
 
-	ld a,5		;There has been a collision. Do appropriate stuff (border change for now)
-	call ROMBDR
+	;ld a,5		;There has been a collision. Do appropriate stuff (border change for now)
+	;call ROMBDR
 	ret
 
 nocol1	ld de,DATABLKSZ	;no collision so move onto next alien
