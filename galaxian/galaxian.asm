@@ -19,6 +19,8 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld a,0
 	call ROMBDR
 	call ROMCLS
+	ld hl,0o
+	ld (seed),hl
 
 
 
@@ -266,21 +268,21 @@ setxpos	ld hl,p1data
 	ld a,1
 	ld (de),a
 notf	pop af
+
 ;#####################################################################################
 	call movep1missile
 	call movealienmissiles
 	call displaysp
 	halt
 
-	;halt
 	call check_alien_hit
 	call check_player_hit
 	call check_alien_collision
 	call display_alien_bang
-	call displaysp
+	;call displaysp
 	call makesound
 
-	;halt
+	
 	jp loop
 
 init_swarm
@@ -426,6 +428,15 @@ sty	ld (ix+0),h
 	ld (ix+1),l
 	ld a,(ix+11)		;reset y to same as shadow y
 stx	ld (ix+3),a		
+
+				;check random number and fire if necessary
+alien_shoot
+	call random
+	cp 10
+	ret nc
+	push ix
+	pop hl
+	call shoot_alien_bomb
 
 	ret
 
@@ -1007,7 +1018,44 @@ nocol1	ld de,DATABLKSZ	;no collision so move onto next alien
 	djnz colloop
 	ret
 
-
+shoot_alien_bomb
+	push hl		  ;hl points to the alien data block
+	ld a,(a1fire)	  ; check if missile1 is already active
+	cp 1
+	jr z, tryam2x	  ; missile1 is already moving so try missile 2
+	ld ix,a1missile	  
+			  ;set x pos of missile to aliens position
+	ld de,a1fire
+	jr setxposx
+tryam2x	ld a,(a2fire)	  ;check if missile2 is already active
+	cp 1
+	jp z, tryam3x	  ; missile2 is already moving so try missile 3
+	ld de,a2fire
+	ld ix,a2missile
+	jr setxposx
+tryam3x	ld a,(a3fire)	
+	cp 1
+	jr z, notfx 	  ; missile3 is already moving so exit
+	ld de,a3fire
+	ld ix,a3missile
+setxposx
+	pop hl
+	ld a,(hl)
+	ld (ix+0),a
+	inc hl
+	ld a,(hl)
+	ld (ix+1),a
+	inc hl
+	inc hl
+	ld a,(hl)	;set y pos of missile
+	ld (ix+3),a
+	ld a,(ix+5)
+	or SPR_VISIBLE
+	ld (ix+5),a
+	ld a,1
+	ld (de),a
+notfx	pop af
+	ret
 
 p1fire		defb 0	; 0 not firing. 1 firing
 a1fire		defb 0  ;
