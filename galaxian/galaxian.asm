@@ -33,6 +33,7 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
         call initspdata     ; initialise the sprite info blocks to 0
         call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
         call displaysp	    ; display the sprites
+        call resetscore
         call displayscore	
 loop		    
 	ld a,(delayvar)	    ; we dont need to move the aliens every frame as that makes them too fast
@@ -924,7 +925,7 @@ upd_score
 	call z,add80
 	cp 100
 	call z,add100
-	cp 200
+	cp 200 
 	call z,add200	
 
 	ld ix,p1missile	; make missile invisible
@@ -1629,10 +1630,21 @@ displaygameover
         call 8252           ; print our string
         ret	
 
+resetscore
+	ld hl,score
+	ld b,6
+	ld a,'0'
+resetl	ld (hl),a
+	inc hl
+	djnz resetl
+	ret
+
+
 string		defb 22,0,11,'HIGH SCORE'
+		defb 22,0,5,'1UP'
 		defb 16,2
-		defb 22,1,15
-		defb '0000'
+		defb 22,1,13
+		defb '000000'
 scorestr	defb 22,1,3
 score		defb '000000'
 eostr		equ $
