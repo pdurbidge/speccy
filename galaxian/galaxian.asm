@@ -16,20 +16,24 @@ SWARM_VALUE   EQU 127	    ;Swarm if the random number is less than this value - 
 
 start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (hl),71
-	ld a,0
+	xor a
+	ld (swarming_in_progress),a
+	ld hl,hitcount
+	ld (hl),a
 	call ROMBDR
 	call ROMCLS
-	ld hl,0o
+	ld hl,0
 	ld (seed),hl
 
 
 
 
+	;call newfont
         call loadspimages   ; load the sprite image data
         call initspdata     ; initialise the sprite info blocks to 0
         call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
         call displaysp	    ; display the sprites
-
+        call displayscore	
 loop		    
 	ld a,(delayvar)	    ; we dont need to move the aliens every frame as that makes them too fast
 	dec a		    ; so we wait for a few frames before moving the aliens. We handle the player each frame
@@ -225,49 +229,7 @@ dont_start_swarm
 	jp nc, start	;R was pressed, so reset and start again.
 
 ;######### THIS BIT IS FOR DEBUGGING AND DEVELOPMENT ONLY ############################
-alienfire
-	ld bc,65022	  ; Check whether the fire button is pressed (f)
-	in a,(c)
-	rra
-	rra
-	rra
-	rra
-	push af
-	jr c, notf	  ; nope f not pressed so jump
 
-;	jr tryam2
-
-	ld a,(a1fire)	  ;f was pressed, so check if missile1 is already active
-	cp 1
-	jp z, tryam2	  ; missile1 is already moving so try missile 2
-	ld ix,a1missile	  ;f has been pressed, so set x pos of missile to players position
-	ld de,a1fire
-	jr setxpos
-tryam2	ld a,(a2fire)	  ;f was pressed, so check if missile2 is already active
-	cp 1
-	jp z, tryam3	  ; missile2 is already moving so try missile 3
-	ld de,a2fire
-	ld ix,a2missile
-	jr setxpos
-tryam3	ld a,(a3fire)	
-	cp 1
-	jp z, notf 	  ; missile3 is already moving so exit
-	ld de,a3fire
-	ld ix,a3missile
-setxpos	ld hl,p1data
-	ld a,(hl)
-	ld (ix+0),a
-	inc hl
-	ld a,(hl)
-	ld (ix+1),a
-	ld a,50		;set y pos of missile
-	ld (ix+3),a
-	ld a,(ix+5)
-	or SPR_VISIBLE
-	ld (ix+5),a
-	ld a,1
-	ld (de),a
-notf	pop af
 
 ;#####################################################################################
 	call movep1missile
@@ -276,6 +238,11 @@ notf	pop af
 	halt
 
 	call check_alien_hit
+	call updatescore
+	ld hl,hitcount
+	ld a,(hl)
+	cp 46
+	call z,displaygameover
 	call check_player_hit
 	call check_alien_collision
 	call display_alien_bang
@@ -935,11 +902,88 @@ yhit1
 	ld (p1fire),a	; we've hit an active alien so stop missile moving
 	ld a,10
 	ld (ix+6),a	;set explosion going
+
+	ld a,(ix+7)
+	or a
+	jr z,notswarming
+	ld a,(ix+14)
+	jr upd_score
+notswarming
+	ld a,(ix+13)
+
+upd_score
+	cp 30
+	call z,add30
+	cp 40
+	call z,add40
+	cp 50
+	call z,add50
+	cp 60
+	call z,add60
+	cp 80
+	call z,add80
+	cp 100
+	call z,add100
+	cp 200
+	call z,add200	
+
 	ld ix,p1missile	; make missile invisible
 	ld a,(ix+5)
 	and SPR_INVISIBLE
 	ld (ix+5),a
+	ld hl,hitcount
+	inc (hl)
 	ret
+
+add30
+       ld hl,score+4       ; point to tens column.
+       ld b,3             ; 3 tens = 30.
+       call uscor          ; up the score.	
+       
+       xor a
+       ret
+
+add40
+       ld hl,score+4       ; point to tens column.
+       ld b,4             ; 4 tens = 40.
+       call uscor          ; up the score.	
+       xor a
+       ret
+
+add50
+       ld hl,score+4       ; point to tens column.
+       ld b,5             ; 5 tens = 50.
+       call uscor          ; up the score.	
+       xor a
+       ret
+
+add60
+       ld hl,score+4       ; point to tens column.
+       ld b,6            ; 6 tens = 60.
+       call uscor          ; up the score.	
+       xor a
+       ret
+
+add80
+       ld hl,score+4       ; point to tens column.
+       ld b,8             ; 8 tens = 80.
+       call uscor          ; up the score.	
+       xor a
+       ret
+
+add100
+       ld hl,score+3	   ;point to hundreds column
+       ld b,1
+       call uscor         ; up the score.	
+       xor a
+       ret
+
+add200
+       ld hl,score+3	   ;point to hundreds column
+       ld b,2
+       call uscor         ; up the score.	
+       xor a
+       ret
 
 
 check_player_hit	;Check if we've been hit by an aliens missile
@@ -1091,21 +1135,7 @@ swarm_start_table
 
 swarmkey	defb 0
 
-string  defb 22,1,7	    ; @ 10,13
-	defb 16, 7	    ; Magenta Ink
-	defb 'DOLLAR$OFT PRESENTS'
-	defb 22,5,2
-	defb 16, 3
-	defb "Phil's Wacky HW Sprite Demo"
-	defb 22,7,3
-	defb 16,7
-	defb "Use QAOP to Move the Apple"
-	defb 22, 16,11
-	defb 16, 2
-	defb 'MAY 2017'
-eostr  equ $
 
-	
 
 galax1	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h	; GREEN ALIEN
 	defb 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h, 0e3h
@@ -1316,7 +1346,7 @@ inloop1		ld bc,DATABLKSZ
 
 newstartspdata	ld de,030ah		; 3 rows of 10 aliens of type 0
 		ld ix,spdata		;set the starting params for each sprite - NEW FORMAT SPRITES
-		ld hl,04080h
+		ld hl,04090h
 sprloop2	ld (ix+1),h		;x
 		ld (ix+9),h
 		ld (ix+3),l		;y
@@ -1326,6 +1356,8 @@ sprloop2	ld (ix+1),h		;x
 		xor a
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
+		ld (ix+13),30		;convoy score
+		ld (ix+14),60		;swarm score
 		ld bc,DATABLKSZ		; move onto next sprite
 		add ix,bc
 		push de
@@ -1342,7 +1374,7 @@ sprloop2	ld (ix+1),h		;x
 		dec d
 		jr nz, sprloop2
 
-		ld hl,05444h
+		ld hl,05454h
 		ld e,08h
 sprloop3	ld (ix+1),h		;x
 		ld (ix+9),h
@@ -1353,6 +1385,8 @@ sprloop3	ld (ix+1),h		;x
 		ld a,2
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
+		ld (ix+13),40		;convoy score
+		ld (ix+14),80		;swarm score
 		ld bc,DATABLKSZ		; move onto next sprite
 		add ix,bc		
 		push de
@@ -1362,7 +1396,7 @@ sprloop3	ld (ix+1),h		;x
 		dec e
 		jr nz, sprloop3
 
-		ld hl,06832h
+		ld hl,06842h
 		ld e,06h
 sprloop4	ld (ix+1),h		;x
 		ld (ix+9),h
@@ -1373,6 +1407,8 @@ sprloop4	ld (ix+1),h		;x
 		ld a,3
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
+		ld (ix+13),50		;convoy score
+		ld (ix+14),100		;swarm score
 		ld bc,DATABLKSZ		; move onto next sprite
 		add ix,bc		
 		push de
@@ -1382,7 +1418,7 @@ sprloop4	ld (ix+1),h		;x
 		dec e
 		jr nz, sprloop4
 
-		ld hl,07c21h
+		ld hl,07c31h
 		ld (ix+1),h		;x
 		ld (ix+9),h
 		ld (ix+3),l		;y
@@ -1392,12 +1428,14 @@ sprloop4	ld (ix+1),h		;x
 		ld a,4
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
+		ld (ix+13),60		;convoy score
+		ld (ix+14),200		;swarm score
 		ld bc,DATABLKSZ	
 		add ix,bc		; miss out 2 sprites on row 6 - they dont really exist
 		add ix,bc
 		add ix,bc
 
-		ld hl,0B821h
+		ld hl,0B831h
 		ld (ix+1),h		;x
 		ld (ix+9),h
 		ld (ix+3),l		;y
@@ -1407,6 +1445,8 @@ sprloop4	ld (ix+1),h		;x
 		ld a,4
 		or SPR_VISIBLE
 		ld (ix+5),a		;pattern
+		ld (ix+13),60		;convoy score
+		ld (ix+14),200		;swarm score
 		ld bc,DATABLKSZ	
 
 		add ix,bc		;Set PLAYER 1 positions
@@ -1536,7 +1576,7 @@ imul2 		rl e                ; shift de 1 bit left.
 
 ;This stores the current score as ascii chars so they are easier to display
 
-score  defb '000000'
+
 uscor  ld a,(hl)           ; current value of digit.
        add a,b             ; add points to this digit.
        ld (hl),a           ; place new digit back in string.
@@ -1565,6 +1605,41 @@ uscor0 dec hl              ; previous character in string.
        call uscor          ; up the score.
 
 
+displayscore
+	ld a,2              ; upper screen
+        call 5633           ; open channel
+        ld de,string        ; address of string
+        ld bc,eostr-string  ; length of string to print
+        call 8252           ; print our string
+        ret
+
+updatescore
+	ld a,2              ; upper screen
+        call 5633           ; open channel
+        ld de,scorestr        ; address of string
+        ld bc,eostr-scorestr  ; length of string to print
+        call 8252           ; print our string
+        ret
+
+displaygameover
+	ld a,2              ; upper screen
+        call 5633           ; open channel
+        ld de,gameoverstring        ; address of string
+        ld bc,goeostr-gameoverstring  ; length of string to print
+        call 8252           ; print our string
+        ret	
+
+string		defb 22,0,11,'HIGH SCORE'
+		defb 16,2
+		defb 22,1,15
+		defb '0000'
+scorestr	defb 22,1,3
+score		defb '000000'
+eostr		equ $
+
+gameoverstring	defb 22,16,11,'GAME OVER!'
+goeostr		equ $
+
 
 		defb 'NUM OF SPRITES:'
 numsprites	db 53			;number of sprites (inc player & missile & alien missiles)
@@ -1583,6 +1658,8 @@ spdata
 		;dw 0			;shadow x (+8 +9)
 		;dw 0			;shadow y (+10 +11)
 		;db 0			;swarm direction (+12)
+		;db 0			;convoy score (+13)
+		;db 0			;swarm score (+14)
 
 r1data		ds 10*DATABLKSZ		; 10 sprites on Row1 
 		
@@ -1611,6 +1688,10 @@ a2missile	ds DATABLKSZ		;ALien 2 Missile
 a3missile	ds DATABLKSZ		;ALien 3 Missile
 		db 'END OF SPRITE DATA'
 
+hitcount
+	db 0
+		;Numbers start at fontdata+128
+		;Letters start at fontdata+264
        		ORG fontdata
        		INCBIN "shortsfuse-font.bin"
 
