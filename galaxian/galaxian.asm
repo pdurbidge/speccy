@@ -1298,6 +1298,22 @@ bang2img:
         db  $E3, $E3, $E3, $E0, $E3, $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E0, $E3, $E3, $E0
         db  $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E3, $E3
 
+token:	db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3			;PLAYER Lives Left Token
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E0, $E0, $E0, $E0, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E0, $E3, $E0, $E0, $E3, $E0, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $FF, $E3, $E3, $30, $E0, $E0, $30, $E3, $E3, $FF, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $FF, $E3, $E3, $30, $E0, $E0, $30, $E3, $E3, $FF, $E3, $E3, $E3
+        db  $E3, $E3, $FF, $FF, $FF, $E3, $30, $E0, $E0, $30, $E3, $FF, $FF, $FF, $E3, $E3
+        db  $E3, $E3, $FF, $E3, $FF, $30, $30, $E0, $E0, $30, $30, $FF, $E3, $FF, $E3, $E3
+        db  $E3, $E3, $FF, $E3, $FF, $E3, $30, $E3, $E3, $30, $E3, $FF, $E3, $FF, $E3, $E3
+        db  $E3, $E3, $FF, $E3, $FF, $E3, $30, $E3, $E3, $30, $E3, $FF, $E3, $FF, $E3, $E3
+        db  $E3, $E3, $FF, $FF, $FF, $E3, $E3, $E3, $E3, $E3, $E3, $FF, $FF, $FF, $E3, $E3
+        db  $E3, $E3, $E3, $FF, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $FF, $E3, $E3, $E3
 
 blank	DS 32,0
 fontdata 	EQU 60000
@@ -1319,7 +1335,7 @@ loadspimages	ld hl,galax1		;location of sprite image
 		xor a
 		out (c),a
 
-		ld d,9			; 8 sprites to read data for
+		ld d,10			; 10 sprites to read data for
 sploop0		ld bc,85		;read 256 bytes of image data and write to port 85 for each sprite
 		ld e,0h
 sploop1		ld a,(hl)
@@ -1451,7 +1467,7 @@ sprloop4	ld (ix+1),h		;x
 		ld bc,DATABLKSZ	
 
 		add ix,bc		;Set PLAYER 1 positions
-		ld hl, 090F0h
+		ld hl, 090E0h
 		ld (ix+1),h
 		ld (ix+3),l
 		ld a,FLAGS
@@ -1462,7 +1478,7 @@ sprloop4	ld (ix+1),h		;x
 
 		ld bc,DATABLKSZ	
 		add ix,bc		;Set missile 1 positions
-		ld hl, 090E0h
+		ld hl, 090D0h
 		ld (ix+1),h
 		ld (ix+3),l
 		ld a,FLAGS
@@ -1500,6 +1516,38 @@ sprloop4	ld (ix+1),h		;x
 		ld a,6
 		ld (ix+5),a
 
+		ld bc,DATABLKSZ	
+		add ix,bc		;Set lives left token positions
+		ld hl, 010F2h
+		ld (ix+1),h
+		ld (ix+3),l
+		ld a,FLAGS
+		ld (ix+4),a
+		ld a,9
+		or SPR_VISIBLE
+		ld (ix+5),a
+
+		ld bc,DATABLKSZ	
+		add ix,bc		;Set lives left token positions
+		ld hl, 020F2h
+		ld (ix+1),h
+		ld (ix+3),l
+		ld a,FLAGS
+		ld (ix+4),a
+		ld a,9
+		or SPR_VISIBLE
+		ld (ix+5),a
+
+		ld bc,DATABLKSZ	
+		add ix,bc		;Set lives left token positions
+		ld hl, 030F2h
+		ld (ix+1),h
+		ld (ix+3),l
+		ld a,FLAGS
+		ld (ix+4),a
+		ld a,9
+		or SPR_VISIBLE
+		ld (ix+5),a
 		ret
 
 
@@ -1646,6 +1694,7 @@ string		defb 22,0,11,'HIGH SCORE'
 		defb 22,1,13
 		defb '000000'
 scorestr	defb 22,1,3
+		defb 16,2
 score		defb '000000'
 eostr		equ $
 
@@ -1654,7 +1703,7 @@ goeostr		equ $
 
 
 		defb 'NUM OF SPRITES:'
-numsprites	db 53			;number of sprites (inc player & missile & alien missiles)
+numsprites	db 56			;number of sprites (inc player & missile & alien missiles)
 
 spritesperrow	db 10, 10 ,10, 8, 6, 4	;last was 4? number of sprites on each row
 
@@ -1698,6 +1747,12 @@ p1missile	ds DATABLKSZ		;Player 1's Missile
 a1missile	ds DATABLKSZ		;ALien 1 Missile
 a2missile	ds DATABLKSZ		;ALien 2 Missile
 a3missile	ds DATABLKSZ		;ALien 3 Missile
+
+token1		ds DATABLKSZ
+token2		ds DATABLKSZ
+token3		ds DATABLKSZ
+
+
 		db 'END OF SPRITE DATA'
 
 hitcount
