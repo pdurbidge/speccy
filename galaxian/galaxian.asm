@@ -33,6 +33,7 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
         call initspdata     ; initialise the sprite info blocks to 0
         call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
         call displaysp	    ; display the sprites
+
         call resetscore
         call displayscore	
 loop		    
@@ -161,6 +162,15 @@ nota
 	jr z,notp	  ;cant move more right so jump
 strx	ld (ix+0),h
 	ld (ix+1),l
+	ld a,(p1fire)
+	or a
+	jr nz,notp
+	ld hl,p1missile
+	ld a,(ix+0)
+	ld (hl),a
+	inc hl
+	ld a,(ix+1)
+	ld (hl),a
 
 notp
 	pop af
@@ -178,6 +188,15 @@ notp
 	jr c,noto	  ;cant move more left so jump
 strx2	ld (ix+0),h
 	ld (ix+1),l
+	ld a,(p1fire)
+	or a
+	jr nz, noto
+	ld hl,p1missile
+	ld a,(ix+0)
+	ld (hl),a
+	inc hl
+	ld a,(ix+1)
+	ld (hl),a
 
 noto
 	ld bc,32766	  ; Check whether the fire button is pressed (space)
@@ -196,7 +215,7 @@ noto
 	inc hl
 	ld a,(hl)
 	ld (ix+1),a
-	ld a,230
+	ld a,224
 	ld (ix+3),a
 	ld a,(ix+5)
 	or SPR_VISIBLE
@@ -788,11 +807,18 @@ sf	ld hl,sndmix	; turn off missile noise
 	ld (hl),a
 	xor a
 	ld (p1fire),a
+	ld hl,p1data
+	ld a,(hl)
+	ld (ix+0),a
+	inc hl
+	ld a,(hl)
+	ld (ix+1),a
+	ld a,224
+	ld (ix+3),a
 	ld a,(ix+5)
-	and SPR_INVISIBLE
+	OR SPR_VISIBLE
 	ld (ix+5),a
-	ld bc,0303bh	; now check for a sprite collision
-	in a,(c)
+
 	ret
 firing	ld (ix+3),a
 	ret
@@ -928,10 +954,20 @@ upd_score
 	cp 200 
 	call z,add200	
 
-	ld ix,p1missile	; make missile invisible
-	ld a,(ix+5)
-	and SPR_INVISIBLE
-	ld (ix+5),a
+	ld ix,p1data	; make missile invisible
+	ld hl,p1missile	
+	ld a,(ix+0)
+	ld (hl),a
+	inc hl
+	ld a,(ix+1)
+	ld (hl),a	
+	inc hl
+	inc hl
+	ld a,224
+	ld (hl),a
+	;ld a,(ix+5)
+	;and SPR_INVISIBLE
+	;ld (ix+5),a
 	ld hl,hitcount
 	inc (hl)
 	ret
@@ -1225,10 +1261,10 @@ galax5:
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $F4, $E3, $E3, $E3, $E3, $E3, $E3,$E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3,$E3, $E3 	
 
-gun1:	db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $F8, $F8, $E3, $E3, $E3, $E3, $E3, $E3, $E3			;PLAYERS GUN
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $F8, $F8, $E3, $E3, $E3, $E3, $E3, $E3, $E3
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $F8, $F8, $E3, $E3, $E3, $E3, $E3, $E3, $E3
-        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $F8, $F8, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+gun1:	db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3			;PLAYERS GUN
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
+        db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E0, $E0, $E3, $E3, $E3, $E3, $E3, $E3
         db  $E3, $E3, $E3, $E3, $E3, $E0, $E0, $E0, $E0, $E0, $E0, $E3, $E3, $E3, $E3, $E3
@@ -1478,12 +1514,13 @@ sprloop4	ld (ix+1),h		;x
 
 		ld bc,DATABLKSZ	
 		add ix,bc		;Set missile 1 positions
-		ld hl, 090D0h
+		ld hl, 090E0h
 		ld (ix+1),h
 		ld (ix+3),l
 		ld a,FLAGS
 		ld (ix+4),a
 		ld a,6
+		OR SPR_VISIBLE	
 		ld (ix+5),a
 
 		ld bc,DATABLKSZ	
