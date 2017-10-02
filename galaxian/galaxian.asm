@@ -436,7 +436,7 @@ alien_shoot
 	ret
 
 homing	ld a,(ix+3)
-	add a,4
+	add a,2
 	ld (ix+3),a
 	cp (ix+11)
 	jr c,h1
@@ -970,7 +970,7 @@ upd_score
 	
 	xor a
 	ld (swarming_in_progress),a
-	
+
 	pop af
 
 	cp 30
