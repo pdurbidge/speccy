@@ -305,6 +305,12 @@ chkswarm
 	cp 0
 	ret z			; return if not
 
+	ld a,(ix+15)
+	cp 1			; is this alien homing
+	jp z,homing
+
+	ld a,(ix+7)
+
 	ld (swarming_in_progress),a	;set flag to say we are already swarming
 	cp 5
 	jr nc, usd		;if the counter is <5 set the flag to show sprite rotated
@@ -403,7 +409,8 @@ sty	ld (ix+0),h
 	cp 250			; has it gone off the bottom?
 	jr c, stx
 	
-	ld (ix+7),0		;It has gone off the bottom so turn off swarming
+	ld (ix+15),1
+	;ld (ix+7),0		;It has gone off the bottom so turn off swarming and turn on homing
 	;push af
 	xor a
 	ld (swarming_in_progress),a
@@ -413,7 +420,8 @@ sty	ld (ix+0),h
 	ld l,(ix+9)
 	ld (ix+0),h		;set x to shadow x
 	ld (ix+1),l
-	ld a,(ix+11)		;reset y to same as shadow y
+	;ld a,(ix+11)		;reset y to just off the screen
+	xor a
 stx	ld (ix+3),a		
 
 				;check random number and fire if necessary
@@ -426,6 +434,22 @@ alien_shoot
 	call shoot_alien_bomb
 
 	ret
+
+homing	ld a,(ix+3)
+	add a,4
+	ld (ix+3),a
+	cp (ix+11)
+	jr c,h1
+	ld a,(ix+11)
+	ld (ix+3),a
+	ld (ix+15),0
+	ld (ix+7),0
+h1	ld h,(ix+8)		;get shadow x
+	ld l,(ix+9)
+	ld (ix+0),h		;set x to shadow x
+	ld (ix+1),l
+	ret
+
 
 display_alien_bang:
 	ld ix,r1data
@@ -943,8 +967,12 @@ upd_score
 	push af
 	xor a
 	ld (ix+7),a	;stop this swarming alien moving once its been hit
-	pop af
 	
+	xor a
+	ld (swarming_in_progress),a
+	
+	pop af
+
 	cp 30
 	call z,add30
 	cp 40
@@ -1764,6 +1792,7 @@ spdata
 		;db 0			;swarm direction (+12)
 		;db 0			;convoy score (+13)
 		;db 0			;swarm score (+14)
+		;db 0			;homing flag
 
 r1data		ds 10*DATABLKSZ		; 10 sprites on Row1 
 		
