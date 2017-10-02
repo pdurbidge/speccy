@@ -938,7 +938,13 @@ yhit1
 notswarming
 	ld a,(ix+13)
 
+
 upd_score
+	push af
+	xor a
+	ld (ix+7),a	;stop this swarming alien moving once its been hit
+	pop af
+	
 	cp 30
 	call z,add30
 	cp 40
