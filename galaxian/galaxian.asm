@@ -36,6 +36,14 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 
         call resetscore
         call displayscore	
+
+        xor a
+        ld (gameover),a
+        ld (dead),a
+        ld (resetting),a
+        ld a,3
+        ld (lives),a
+
 loop		    
 	ld a,(delayvar)	    ; we dont need to move the aliens every frame as that makes them too fast
 	dec a		    ; so we wait for a few frames before moving the aliens. We handle the player each frame
@@ -208,6 +216,10 @@ noto
 	ld a,(p1fire)	  ;space was pressed, so check if missile is already active
 	cp 1
 	jp z, notsp 	  ; missile is already moving so ignore this key press
+	ld a,(gameover)
+	or a
+	jp nz, notsp
+
 	ld ix,p1missile	  ;fire has been pressed, so set x pos of missile to players position
 	ld hl,p1data
 	ld a,(hl)
@@ -263,16 +275,62 @@ dont_start_swarm
 	ld a,(hl)
 	cp 46
 	call z,displaygameover
+
+	ld a,(gameover)
+	or a
+	jp nz, loop
 	call check_player_hit
 	call check_alien_collision
+
+	call display_player_bang
 	call display_alien_bang
-	;call displaysp
 	call makesound
 
+	ld a,(dead)
+	or a
+	call nz, restart_with_less_lives
+	;call displaysp
 	
 	jp loop
 
+restart_with_less_lives
+	ld a,(resetting)
+	or a
+	jr nz,r1
+	ld a,(lives)
+	dec a
+	ld (lives),a
+r1	ld a,1
+	ld (resetting),a
+	ld a,(lives)
+	or a
+	call z,displaygameover
+	ld a,(swarming_in_progress)
+	or a
+	ret nz
+	xor a
+	ld (resetting),a
+	ld (dead),a
+	ld ix,p1data
+	ld a,FLAGS
+	ld (ix+4),a
+	ld a,5
+	or SPR_VISIBLE
+	ld (ix+5),a
+
+	ld ix,p1missile
+	ld a,FLAGS
+	ld (ix+4),a
+	ld a,6
+	or SPR_VISIBLE
+	ld (ix+5),a
+
+	ret
+
 init_swarm
+	ld a,(resetting)
+	or a
+	ret nz
 	xor a
 	ld (do_swarm),a
 	call random			;get a random number
@@ -496,6 +554,60 @@ endbang	ld a,(ix+5)
 	ld hl,sndv2	; turn explosion off CHB Amplitude=0
 	ld (hl),0
 	ret
+
+
+display_player_bang:
+	ld ix,p1data
+	ld a,(ix+6)	;get counter
+	cp 0
+	ret z
+	cp 1
+	jr z, endpbang
+	cp 5
+	jr nc,pbang2	;if counter is <5, display image 7 else display image 8
+	ld a, 8
+	jr pbang2b
+pbang2	ld hl,snddat+2  
+	ld (hl),100
+	ld hl,sndwnp	;start explosion sound
+	ld (hl),10	; freq of white noise r6
+	inc hl
+	ld (hl),29	;mixer r7 - CHB Tone Only`
+	;ld (hl),47	;mixer r7 - CHB Noise Only
+	inc hl
+	inc hl
+	ld (hl),8	;chB amplitude
+	push de
+	call makesound
+	pop de
+	ld a, 7
+pbang2b	or SPR_VISIBLE
+	ld (ix+5),a
+	ld a,(ix+6)
+	dec a
+	ld (ix+6),a
+	ret
+endpbang
+	ld a,(ix+5)
+	and SPR_INVISIBLE
+	ld (ix+5),a
+	xor a
+	ld (ix+6),a
+
+	ld ix,p1missile
+	ld a,(ix+5)
+	and SPR_INVISIBLE
+	ld (ix+5),a
+	xor a
+	ld (ix+6),a
+
+	ld hl,sndv2	; turn explosion off CHB Amplitude=0
+	ld (hl),0
+	;ld a,1
+	;ld (dead),a
+	ret
+
+
 
 ; Write the contents of our AY buffer to the AY registers.
 
@@ -1059,6 +1171,9 @@ add200
 
 
 check_player_hit	;Check if we've been hit by an aliens missile
+	ld a,(dead)
+	or a
+	ret nz		;we are already dead so dont check again
 	ld a,(a1fire)
 	ld ix,a1missile
 	cp 1
@@ -1081,8 +1196,14 @@ a3chk	ld a,(a3fire)
 	or a
 	ret z
 missilehit	
-	;ld a,6
-	;call ROMBDR
+	;ld a,(lives)
+	;dec a
+	;ld (lives),a
+	ld a,1
+	ld (dead),a
+	ld ix,p1data
+	ld a,10
+	ld (ix+6),a	;set explosion going
 	ret
 
 chkmissilehit			;check if the missile (ix) has hit the player. Return a <> 0 if hit.
@@ -1107,6 +1228,9 @@ mhit	ld a,1
 	ret
 
 check_alien_collision	;Check if we have collided with a swarming alien
+	ld a,(dead)
+	or a
+	ret nz		;we are already dead so dont check again	
 	ld ix,r1data
 	ld b,numaliens
 colloop	ld a,(ix+7)
@@ -1125,8 +1249,15 @@ colloop	ld a,(ix+7)
 chk1	cp 8
 	jr nc,nocol1
 
-	;ld a,5		;There has been a collision. Do appropriate stuff (border change for now)
-	;call ROMBDR
+	;ld a,(lives)		;There has been a collision. Do appropriate stuff (border change for now)
+	;dec a
+	;ld (lives),a
+	ld a,1
+	ld (dead),a
+
+	ld ix,p1data
+	ld a,10
+	ld (ix+6),a	;set explosion going
 	ret
 
 nocol1	ld de,DATABLKSZ	;no collision so move onto next alien
@@ -1183,8 +1314,7 @@ nxt_alien_dir	defb 0
 delayvar	defb 2
 waitflag	defb 0
 
-level		defb 1
-lives		defb 3
+
 
 
 
@@ -1777,6 +1907,19 @@ displaygameover
         ld de,gameoverstring        ; address of string
         ld bc,goeostr-gameoverstring  ; length of string to print
         call 8252           ; print our string
+        ld de,resetstring
+        ld bc,reoestring-resetstring
+        call 8252
+        ld a,1
+        ld (gameover),a
+        ld ix,p1data
+        ld a,(ix+5)
+        or SPR_INVISIBLE
+        ld (ix+5),a
+        ld ix,p1missile
+        ld a,(ix+5)
+        or SPR_INVISIBLE
+        ld (ix+5),a
         ret	
 
 resetscore
@@ -1801,6 +1944,8 @@ eostr		equ $
 
 gameoverstring	defb 22,16,11,'GAME OVER!'
 goeostr		equ $
+resetstring	defb 22,18,8,'PRESS R TO RETRY'
+reoestring	equ $
 
 
 		defb 'NUM OF SPRITES:'
@@ -1857,6 +2002,11 @@ token3		ds DATABLKSZ
 
 		db 'END OF SPRITE DATA'
 
+level		defb 1
+lives		defb 3
+dead		defb 0
+resetting	defb 0
+gameover	defb 0
 hitcount
 	db 0
 		;Numbers start at fontdata+128
