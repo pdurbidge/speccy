@@ -366,7 +366,7 @@ storexd
 	jr nz,chkxl		;MSB not set so check x left pos
 
 	ld a,l
-	cp 48
+	cp 64
 	;jr c,sty		;has it gone off right. i.e is 48 bigger than A. Jump if 48 not bigger than A
 	;jr z,sty
 	jr c,chkxl
@@ -376,7 +376,7 @@ storexd
 	;ld hl,302
 
 	ld h,1
-	ld l,50
+	ld l,66
 
 	jr sty
 
@@ -415,7 +415,7 @@ sty	ld (ix+0),h
 	xor a
 	ld (swarming_in_progress),a
 	;pop af
-	ld (ix+4),0		;turn off mirroring etc
+	;ld (ix+4),0		;turn off mirroring etc
 	ld h,(ix+8)		;get shadow x
 	ld l,(ix+9)
 	ld (ix+0),h		;set x to shadow x
@@ -444,6 +444,7 @@ homing	ld a,(ix+3)
 	ld (ix+3),a
 	ld (ix+15),0
 	ld (ix+7),0
+	ld (ix+4),0
 h1	ld h,(ix+8)		;get shadow x
 	ld l,(ix+9)
 	ld (ix+0),h		;set x to shadow x
@@ -1134,7 +1135,7 @@ nocol1	ld de,DATABLKSZ	;no collision so move onto next alien
 	ret
 
 shoot_alien_bomb
-	push hl		  ;hl points to the alien data block
+	push ix		  ;hl points to the alien data block
 	ld a,(a1fire)	  ; check if missile1 is already active
 	cp 1
 	jr z, tryam2x	  ; missile1 is already moving so try missile 2
@@ -1154,7 +1155,7 @@ tryam3x	ld a,(a3fire)
 	ld de,a3fire
 	ld ix,a3missile
 setxposx
-	pop hl
+	;pop hl
 	ld a,(hl)
 	ld (ix+0),a
 	inc hl
@@ -1169,7 +1170,8 @@ setxposx
 	ld (ix+5),a
 	ld a,1
 	ld (de),a
-notfx	pop af
+notfx	pop ix
+
 	ret
 
 p1fire		defb 0	; 0 not firing. 1 firing
@@ -1180,6 +1182,11 @@ alien_dir	defb 0	; 0=right, 1=left
 nxt_alien_dir	defb 0
 delayvar	defb 2
 waitflag	defb 0
+
+level		defb 1
+lives		defb 3
+
+
 
 ; left edge=0
 ; bottom = 320
@@ -1587,36 +1594,59 @@ sprloop4	ld (ix+1),h		;x
 		ld a,6
 		ld (ix+5),a
 
-		ld bc,DATABLKSZ	
+life2spr	ld bc,DATABLKSZ	
 		add ix,bc		;Set lives left token positions
 		ld hl, 010F2h
 		ld (ix+1),h
 		ld (ix+3),l
 		ld a,FLAGS
 		ld (ix+4),a
+		ld a,(lives)
+		cp 2
+		jr nc,life2vis
+		jr z,life2vis
 		ld a,9
+		or SPR_INVISIBLE
+		ld (ix+5),a
+		jr life3spr
+life2vis	ld a,9
 		or SPR_VISIBLE
 		ld (ix+5),a
 
-		ld bc,DATABLKSZ	
+life3spr	ld bc,DATABLKSZ	
 		add ix,bc		;Set lives left token positions
 		ld hl, 020F2h
 		ld (ix+1),h
 		ld (ix+3),l
 		ld a,FLAGS
 		ld (ix+4),a
-		ld a,9
+		ld a,(lives)
+		cp 3
+		jr nc,life3vis
+		jr z,life3vis
+		or SPR_INVISIBLE
+		ld (ix+5),a
+		jr life4spr
+life3vis	ld a,9
 		or SPR_VISIBLE
 		ld (ix+5),a
 
-		ld bc,DATABLKSZ	
+life4spr	ld bc,DATABLKSZ	
 		add ix,bc		;Set lives left token positions
 		ld hl, 030F2h
 		ld (ix+1),h
 		ld (ix+3),l
 		ld a,FLAGS
 		ld (ix+4),a
+		ld a,(lives)
+		cp 4
+		jr nc,life4vis
+		jr z,life4vis
 		ld a,9
+		or SPR_INVISIBLE
+		ld (ix+5),a
+		ret
+life4vis	ld a,9
 		or SPR_VISIBLE
 		ld (ix+5),a
 		ret
