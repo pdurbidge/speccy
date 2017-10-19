@@ -43,7 +43,7 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
         ld (resetting),a
         ld a,3
         ld (lives),a
-
+        call resetlifetokens
 loop		    
 	ld a,(delayvar)	    ; we dont need to move the aliens every frame as that makes them too fast
 	dec a		    ; so we wait for a few frames before moving the aliens. We handle the player each frame
@@ -324,7 +324,7 @@ r1	ld a,1
 	ld a,6
 	or SPR_VISIBLE
 	ld (ix+5),a
-
+	call resetlifetokens
 	ret
 
 init_swarm
@@ -1724,8 +1724,12 @@ sprloop4	ld (ix+1),h		;x
 		ld a,6
 		ld (ix+5),a
 
+		call resetlifetokens
+		ret
+
+resetlifetokens
 life2spr	ld bc,DATABLKSZ	
-		add ix,bc		;Set lives left token positions
+		ld ix,token1		;Set lives left token positions
 		ld hl, 010F2h
 		ld (ix+1),h
 		ld (ix+3),l
