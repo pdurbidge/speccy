@@ -18,14 +18,17 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (hl),71
 	xor a
 	ld (swarming_in_progress),a
-	ld hl,hitcount
-	ld (hl),a
+	ld (levelover),a
+	ld (gameover),a
+	ld (hitcount),a
+	ld (dead),a
+	ld (resetting),a
 	call ROMBDR
 	call ROMCLS
 	ld hl,0
 	ld (seed),hl
 
-
+	call introscreen
 
 
 	;call newfont
@@ -267,14 +270,11 @@ dont_start_swarm
 	call movep1missile
 	call movealienmissiles
 	call displaysp
-	halt
+	halt			;TODO CHANGE THIS HALT TO A DELAY LOOP DEPENDING ON LEVEL
 
 	call check_alien_hit
 	call updatescore
-	ld hl,hitcount
-	ld a,(hl)
-	cp 46
-	call z,displaygameover
+
 
 	ld a,(gameover)
 	or a
@@ -283,13 +283,16 @@ dont_start_swarm
 	call check_alien_collision
 
 	call display_player_bang
-	call display_alien_bang
+	call display_alien_bang		;THIS SEEMS TO BE VERY SLOW - CAN WE SPEED IT UP
 	call makesound
 
 	ld a,(dead)
 	or a
 	call nz, restart_with_less_lives
 	;call displaysp
+	ld a,(levelover)
+	or a
+	call nz,displaygameover
 	
 	jp loop
 
@@ -548,13 +551,19 @@ nobang	add ix,de
 endbang	ld a,(ix+5)
 	and SPR_INVISIBLE
 	ld (ix+5),a
-
+	ld hl,hitcount
+	ld a,(hl)
+	cp 46
+	jr nz,notlastalien
+	ld a,1
+	ld (levelover),a
+notlastalien
 	xor a
 	ld (ix+6),a
 	ld hl,sndv2	; turn explosion off CHB Amplitude=0
 	ld (hl),0
 	ret
-
+levelover db 0
 
 display_player_bang:
 	ld ix,p1data
@@ -586,9 +595,13 @@ pbang2b	or SPR_VISIBLE
 	ld a,(ix+6)
 	dec a
 	ld (ix+6),a
+	ld ix,p1missile
+	ld a,(ix+5)
+	and SPR_INVISIBLE
+	ld (ix+5),a
 	ret
 endpbang
-	ld a,(ix+5)
+	ld a,5
 	and SPR_INVISIBLE
 	ld (ix+5),a
 	xor a
@@ -1170,7 +1183,8 @@ add200
        ret
 
 
-check_player_hit	;Check if we've been hit by an aliens missile
+check_player_hit
+	;Check if we've been hit by an aliens missile
 	ld a,(dead)
 	or a
 	ret nz		;we are already dead so dont check again
@@ -1204,12 +1218,18 @@ missilehit
 	ld ix,p1data
 	ld a,10
 	ld (ix+6),a	;set explosion going
+
 	ret
 
 chkmissilehit			;check if the missile (ix) has hit the player. Return a <> 0 if hit.
 	ld a,(ix+3)
-	cp 240
+	cp $e0
 	jr c,nomhit		;missile is too high no hit
+	ld a,(p1data)
+	ld e,a
+	ld a,(ix+0)
+	cp e
+	jr nz,nomhit
 	ld a,(p1data+1)		;get player x
 	sub (ix+1)
 	jr z,mhit
@@ -1237,11 +1257,14 @@ colloop	ld a,(ix+7)
 	or a
 	jr z,nocol1	;this alien isn't swarming so try next one
 	ld a,(ix+3)	;get the alien y coord. 
-	cp $e8		;compare it with player
+	cp $e0		;compare it with players Y co-ord
 	jr c,nocol1	;if its above it, try next alien
+	ld e,(ix+0)
+	ld a,(p1data)
+	cp e
+	jr nz,nocol1
 	ld e,(ix+1)	;now check xpos
-	ld hl,p1data+1
-	ld a,(hl)
+	ld a,(p1data+1)
 	sub e
 	jr nc,chk1
 	neg
@@ -1728,6 +1751,10 @@ sprloop4	ld (ix+1),h		;x
 		ret
 
 resetlifetokens
+		ld ix,p1data
+		ld a,5
+		or SPR_VISIBLE
+		ld (ix+5),a
 life2spr	ld bc,DATABLKSZ	
 		ld ix,token1		;Set lives left token positions
 		ld hl, 010F2h
@@ -1935,6 +1962,47 @@ resetl	ld (hl),a
 	djnz resetl
 	ret
 
+introscreen
+	call initspdata
+	call displaysp
+	call ROMCLS
+	ld a,2
+	call 5633
+	ld de,s1line1
+	ld bc,s1line2-s1line1
+	call 8252
+	ld de,s1line2
+	ld bc,s1line3-s1line2
+	call 8252
+	ld de,s1line3
+	ld bc,s1line4-s1line3
+	call 8252
+	ld de,s1line4
+	ld bc,s1line5-s1line4
+	call 8252
+	ld de,s1line5
+	ld bc,s1line6-s1line5
+	call 8252
+	ld de,s1line6
+	ld bc,s1line7-s1line6
+	call 8252
+	ld de,s1line7
+	ld bc,s1line8-s1line6
+	call 8252
+	ld de,s1line8
+	ld bc,eos1-s1line8
+	call 8252
+
+				;wait for key press
+	ld hl,23560         ; LAST K system variable.
+        ld (hl),0           ; put null value there.
+wkloop  ld a,(hl)           ; new value of LAST K.
+        cp 0                ; is it still zero?
+        jr z,wkloop           ; yes, so no key pressed.
+        call ROMCLS
+        ret                 ; key was pressed.
+
+
 
 string		defb 22,0,11,'HIGH SCORE'
 		defb 22,0,5,'1UP'
@@ -1951,6 +2019,16 @@ goeostr		equ $
 resetstring	defb 22,18,8,'PRESS R TO RETRY'
 reoestring	equ $
 
+
+s1line1		defb 16,2,22,3,6,'WE ARE THE GALAXIANS'
+s1line2		defb 16,2,22,5,4,'MISSION: DESTROY ALIENS'
+s1line3		defb 16,7,22,9,4,'- SCORE ADVANCE TABLE -'
+s1line4		defb 16,5,22,11,8,'CONVOY  CHARGER'
+s1line5		defb 16,5,22,13,10,'60      150 PTS'
+s1line6		defb 16,5,22,15,10,'50      100 PTS'
+s1line7		defb 16,5,22,17,10,'40       80 PTS'
+s1line8		defb 16,5,22,19,10,'30       60 PTS'
+eos1
 
 		defb 'NUM OF SPRITES:'
 numsprites	db 56			;number of sprites (inc player & missile & alien missiles)
