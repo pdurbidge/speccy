@@ -16,6 +16,8 @@ SWARM_VALUE   EQU 127	    ;Swarm if the random number is less than this value - 
 
 start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (hl),71
+	;ld a,100
+	;ld (reset_counter),a
 	xor a
 	ld (swarming_in_progress),a
 	ld (levelover),a
@@ -23,6 +25,8 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (hitcount),a
 	ld (dead),a
 	ld (resetting),a
+	ld (reset_counter),a
+
 	call ROMBDR
 	call ROMCLS
 	ld hl,0
@@ -140,6 +144,10 @@ donxtalien
 	ld a,(nxt_alien_dir)
 	ld (alien_dir),a
 
+	ld a,(reset_counter)
+	or a
+	jp nz,ignore_p1_controls
+
 mp1	ld ix,p1data	   ;now deal with PLAYER 1
 
 
@@ -245,6 +253,7 @@ notsp
 	rra
 	call nc,start_swarm
 
+ignore_p1_controls
 	ld a,(swarming_in_progress)
 	or a
 	jr nz,dont_start_swarm		;we are already swarming so dont bother doing it again
@@ -311,6 +320,12 @@ r1	ld a,1
 	ld a,(swarming_in_progress)
 	or a
 	ret nz
+
+	ld a,(reset_counter)
+	dec a
+	ld (reset_counter),a
+	ret nz
+
 	xor a
 	ld (resetting),a
 	ld (dead),a
@@ -329,6 +344,7 @@ r1	ld a,1
 	ld (ix+5),a
 	call resetlifetokens
 	ret
+reset_counter	db 0
 
 init_swarm
 	ld a,(resetting)
@@ -1188,6 +1204,10 @@ check_player_hit
 	ld a,(dead)
 	or a
 	ret nz		;we are already dead so dont check again
+	ld a,(reset_counter)
+	or a
+	ret nz
+
 	ld a,(a1fire)
 	ld ix,a1missile
 	cp 1
@@ -1215,6 +1235,8 @@ missilehit
 	;ld (lives),a
 	ld a,1
 	ld (dead),a
+	ld a,50
+	ld (reset_counter),a
 	ld ix,p1data
 	ld a,10
 	ld (ix+6),a	;set explosion going
