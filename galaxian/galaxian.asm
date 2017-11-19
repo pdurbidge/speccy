@@ -221,7 +221,7 @@ noto
 	ld bc,32766	  ; Check whether the fire button is pressed (space)
 	in a,(c)
 	rra
-	push af
+	;push af
 	jr c, notsp	  ; nope space not pressed so jump
 
 	ld a,(p1fire)	  ;space was pressed, so check if missile is already active
@@ -246,12 +246,12 @@ noto
 	ld a,1
 	ld (p1fire),a
 notsp
-	pop af
-	ld bc,65022	;check if S pressed for swarm test
-	in a,(c)
-	rra
-	rra
-	call nc,start_swarm
+	;pop af
+	;ld bc,65022	;check if S pressed for swarm test
+	;in a,(c)
+	;rra
+	;rra
+	;call nc,start_swarm
 
 ignore_p1_controls
 	ld a,(swarming_in_progress)
