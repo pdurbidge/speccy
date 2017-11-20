@@ -315,6 +315,12 @@ restart_with_less_lives
 	ld (lives),a
 r1	ld a,1
 	ld (resetting),a
+
+	ld hl,p1data+6		;check if explosion animation is happening
+	ld a,(hl)		;exit if so as we want to see it explode even for the last life
+	or a
+	ret nz
+
 	ld a,(lives)
 	or a
 	call z,displaygameover
