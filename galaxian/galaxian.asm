@@ -13,6 +13,7 @@ SPR_INVISIBLE EQU 127	    ;NEW FORMAT SPRITES - RESET VISIBLE BIT WHILE LEAVING 
 SPR_ROTATE    EQU 2	    ;NEW FORMAT SPRITES - SET ROTATE BIT
 SPR_VMIRROR   EQU 4	    ;NEW FORMAT SPRITES - SET Vertical Mirror BIT
 SWARM_VALUE   EQU 127	    ;Swarm if the random number is less than this value - used to speed up or slow down swarming
+PLAYER_RESPAWN_DELAY EQU 30 ;Delay before dead player is respawned
 
 start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (hl),71
@@ -301,7 +302,7 @@ dont_start_swarm
 	;call displaysp
 	ld a,(levelover)
 	or a
-	call nz,displaygameover
+	call nz,displaylevelover
 	
 	jp loop
 
@@ -1235,7 +1236,7 @@ missilehit
 	;ld (lives),a
 	ld a,1
 	ld (dead),a
-	ld a,50
+	ld a,PLAYER_RESPAWN_DELAY
 	ld (reset_counter),a
 	ld ix,p1data
 	ld a,10
@@ -1975,6 +1976,27 @@ displaygameover
         ld (ix+5),a
         ret	
 
+displaylevelover
+	ld a,2              ; upper screen
+        call 5633           ; open channel
+        ld de,leveloverstring        ; address of string
+        ld bc,loeostr-leveloverstring  ; length of string to print
+        call 8252           ; print our string
+        ld de,resetstring
+        ld bc,reoestring-resetstring
+        call 8252
+        ld a,1
+        ld (gameover),a
+        ld ix,p1data
+        ld a,(ix+5)
+        or SPR_INVISIBLE
+        ld (ix+5),a
+        ld ix,p1missile
+        ld a,(ix+5)
+        or SPR_INVISIBLE
+        ld (ix+5),a
+        ret
+
 resetscore
 	ld hl,score
 	ld b,6
@@ -2040,7 +2062,8 @@ gameoverstring	defb 22,16,11,'GAME OVER!'
 goeostr		equ $
 resetstring	defb 22,18,8,'PRESS R TO RETRY'
 reoestring	equ $
-
+leveloverstring defb 22,16,9,'LEVEL COMPLETE'
+loeostr		equ $
 
 s1line1		defb 16,2,22,3,6,'WE ARE THE GALAXIANS'
 s1line2		defb 16,2,22,5,4,'MISSION: DESTROY ALIENS'
