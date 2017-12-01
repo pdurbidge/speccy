@@ -27,6 +27,14 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 	ld (dead),a
 	ld (resetting),a
 	ld (reset_counter),a
+	ld (level),a
+	ld hl,asciilev
+	ld (hl),'0'
+	inc hl
+	ld (hl),'0'
+	inc hl
+	ld (hl),'0'
+	xor a
 
 	call ROMBDR
 	call ROMCLS
@@ -38,9 +46,9 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
 
 	;call newfont
         call loadspimages   ; load the sprite image data
-        call initspdata     ; initialise the sprite info blocks to 0
-        call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
-        call displaysp	    ; display the sprites
+        ;call initspdata     ; initialise the sprite info blocks to 0
+        ;call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
+        ;call displaysp	    ; display the sprites
 
         call resetscore
         call displayscore	
@@ -52,6 +60,23 @@ start   ld hl,ATTRP	    ;Set the PAPER and BORDER to Black, ink to bright white
         ld a,3
         ld (lives),a
         call resetlifetokens
+
+newlevel
+	ld a,(asciilev+2)
+ 	inc a
+ 	ld (asciilev+2),a
+ 	ld a,(level)
+ 	inc a
+ 	ld (level),a
+ 	xor a
+ 	ld (levelover),a
+ 	ld (hitcount),a
+ 	call initspdata     ; initialise the sprite info blocks to 0
+        call newstartspdata ; set start positions of sprites (NEW FORMAT SPRITES)
+        call displaysp	    ; display the sprites
+
+ 	;ret
+
 loop		    
 	ld a,(delayvar)	    ; we dont need to move the aliens every frame as that makes them too fast
 	dec a		    ; so we wait for a few frames before moving the aliens. We handle the player each frame
@@ -296,14 +321,16 @@ dont_start_swarm
 	call display_alien_bang		;THIS SEEMS TO BE VERY SLOW - CAN WE SPEED IT UP
 	call makesound
 
+	ld a,(levelover)
+	or a
+
+	jp nz,newlevel
+
 	ld a,(dead)
 	or a
 	call nz, restart_with_less_lives
 	;call displaysp
-	ld a,(levelover)
-	or a
-	call nz,displaylevelover
-	
+
 	jp loop
 
 restart_with_less_lives
@@ -352,6 +379,8 @@ r1	ld a,1
 	call resetlifetokens
 	ret
 reset_counter	db 0
+
+
 
 init_swarm
 	ld a,(resetting)
@@ -2003,6 +2032,15 @@ displaylevelover
         ld (ix+5),a
         ret
 
+ nextlevel
+ 	ld a,(asciilev+2)
+ 	inc a
+ 	ld (asciilev+2),a
+ 	ld a,(level)
+ 	inc a
+ 	ld (level),a
+ 	ret
+
 resetscore
 	ld hl,score
 	ld b,6
@@ -2011,6 +2049,11 @@ resetl	ld (hl),a
 	inc hl
 	djnz resetl
 	ret
+
+pause2  ld b,100            ; time to pause.
+delay2  halt                ; wait for an interrupt.
+        djnz delay2          ; repeat.
+        ret
 
 introscreen
 	call initspdata
@@ -2021,18 +2064,29 @@ introscreen
 	ld de,s1line1
 	ld bc,s1line2-s1line1
 	call 8252
+	call pause2
 	ld de,s1line2
 	ld bc,s1line3-s1line2
 	call 8252
+	call pause2
 	ld de,s1line3
 	ld bc,s1line4-s1line3
 	call 8252
+	call pause2
 	ld de,s1line4
 	ld bc,s1line5-s1line4
 	call 8252
-	ld de,s1line5
+	call pause2
+	ld de,s1line5			;First line of scrolling text
 	ld bc,s1line6-s1line5
 	call 8252
+	ld de,tty1			;text
+	ld bc,tty2-tty1			;length of text
+	ld l,13				;ypos of line of text
+	ld h,10				;xpos we want to end up at
+	;call ttyprint
+	
+
 	ld de,s1line6
 	ld bc,s1line7-s1line6
 	call 8252
@@ -2052,6 +2106,37 @@ wkloop  ld a,(hl)           ; new value of LAST K.
         call ROMCLS
         ret                 ; key was pressed.
 
+ttyprint
+	ld a,1
+	ld (ttylen),a
+	ld h,30		;col
+	ld l,21		;row
+	ld b,c
+ttyl	call setxy
+	push bc
+	ld a,(ttylen)
+	ld b,0
+	ld c,a
+	call 8252
+	inc a
+	ld (ttylen),a
+	pop bc
+	dec h
+	djnz ttyl
+
+	ret
+ttylen	db 0
+
+setxy
+	ld a,22
+	rst 16
+	ld a,l
+	rst 16
+	ld a,h
+	rst 16
+	ret
+
+printat		defb 22,0,0	
 
 
 string		defb 22,0,11,'HIGH SCORE'
@@ -2062,6 +2147,9 @@ string		defb 22,0,11,'HIGH SCORE'
 scorestr	defb 22,1,3
 		defb 16,2
 score		defb '000000'
+		defb 16,7,22,0,23,'LEVEL'
+		defb 16,2,22,1,24
+asciilev	defb '001'
 eostr		equ $
 
 gameoverstring	defb 22,16,11,'GAME OVER!'
@@ -2080,6 +2168,12 @@ s1line6		defb 16,5,22,15,10,'50      100 PTS'
 s1line7		defb 16,5,22,17,10,'40       80 PTS'
 s1line8		defb 16,5,22,19,10,'30       60 PTS'
 eos1
+
+tty1		defb '60      150 PTS'
+tty2		defb '50      100 PTS'
+tty3		defb '40       80 PTS'
+tty4 		defb '30       60 PTS'
+ttyend		equ $
 
 		defb 'NUM OF SPRITES:'
 numsprites	db 56			;number of sprites (inc player & missile & alien missiles)
